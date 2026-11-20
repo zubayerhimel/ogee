@@ -136,32 +136,70 @@ function Mockup({ platform, state, src }: { platform: PlatformId; state: OGState
 }
 
 export function PlatformPreviews({ state }: { state: OGState }) {
+  const [platform, setPlatform] = useState<PlatformId>("x");
   const src = useDesignImage(state);
   const { w, h } = PRESETS[state.preset];
+  const current = PLATFORMS.find((p) => p.id === platform) ?? PLATFORMS[0]!;
 
   return (
-    <section aria-label="How it looks when shared" className="mx-auto w-full max-w-[1120px]">
-      <p className="text-[13px] text-graphite">
-        Approximate layouts at {w} × {h}. Platforms change them often, so treat these as a
-        guide.
-      </p>
-      <ul className="mt-5 grid gap-x-8 gap-y-10 md:grid-cols-2">
-        {PLATFORMS.map((p) => (
-          <li key={p.id} className="min-w-0">
-            <div className="mb-2.5 flex items-baseline justify-between gap-3">
-              <h3 className="text-[14px] font-semibold">{p.label}</h3>
-              <p className="truncate text-[12px] text-graphite">
-                {p.crop ? `${p.crop}:1 · ` : "Original shape · "}
-                {describeCrop(w, h, p.crop)}
-              </p>
-            </div>
+    <section
+      aria-labelledby="platforms-heading"
+      className="border-t border-hairline bg-paper px-5 py-14 lg:px-12 lg:py-20"
+    >
+      <div className="mx-auto grid max-w-[1180px] gap-10 lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-16">
+        <div>
+          <h2 id="platforms-heading" className="text-[28px] font-semibold leading-tight tracking-[-0.015em]">
+            Where it’s shared
+          </h2>
+          <p className="mt-2 max-w-[36ch] text-[15px] text-graphite">
+            Your design as it unfurls on each platform, with the part each one crops. Layouts are
+            approximate; platforms change them often.
+          </p>
+          <div
+            role="group"
+            aria-label="Platform"
+            className="mt-6 grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-1"
+          >
+            {PLATFORMS.map((p) => {
+              const active = p.id === platform;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setPlatform(p.id)}
+                  className={cn(
+                    "flex items-baseline justify-between gap-3 px-3 py-2 text-left text-[14px] transition-colors duration-150",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    active ? "bg-wash font-medium text-ink" : "text-graphite hover:bg-wash/60 hover:text-ink",
+                  )}
+                >
+                  <span>{p.label}</span>
+                  <span className="hidden text-[12px] font-normal text-graphite lg:inline">
+                    {p.crop ? `${p.crop}:1` : "Original"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <div className="max-w-[560px]">
             <div className="shadow-[var(--shadow-proof)]">
-              <Mockup platform={p.id} state={state} src={src} />
+              <Mockup platform={platform} state={state} src={src} />
             </div>
-            <p className="mt-2 text-[12px] text-graphite">{p.note}</p>
-          </li>
-        ))}
-      </ul>
+            <p className="mt-4 text-[13px] text-ink">
+              {describeCrop(w, h, current.crop)}
+              <span className="text-graphite">
+                {" "}
+                · {current.crop ? `${current.crop}:1 frame` : "original shape"}
+              </span>
+            </p>
+            <p className="mt-1 text-[13px] text-graphite">{current.note}</p>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
