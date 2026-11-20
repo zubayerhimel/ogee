@@ -107,8 +107,8 @@ export const defaultState: OGState = {
   title: "Design social previews that actually get clicked",
   description:
     "Paste a URL, pull the metadata, and export a pixel-perfect 1200×630 image in seconds.",
-  badge: "OG STUDIO",
-  domain: "ogstudio.app",
+  badge: "OGEE",
+  domain: "ogee.app",
   logoUrl: null,
   imageUrl: null,
   imageMode: "none",

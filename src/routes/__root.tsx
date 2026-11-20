@@ -12,6 +12,8 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { themeInitScript } from "../lib/theme";
+import { siteMeta } from "../lib/site";
+import { getSiteOrigin } from "../lib/site-origin";
 
 function NotFoundComponent() {
   return (
@@ -78,14 +80,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "OG Studio — Open Graph image generator" },
-      {
-        name: "description",
-        content: "Fetch metadata from any URL and export a polished social preview image.",
-      },
-      { property: "og:site_name", content: "OG Studio" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+      ...siteMeta(getSiteOrigin()),
     ],
     links: [
       {
@@ -98,7 +93,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400..700&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.ico", sizes: "32x32" },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
     ],
   }),
   shellComponent: RootShell,

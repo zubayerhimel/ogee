@@ -2,7 +2,7 @@
 import { withScheme } from "./html-meta";
 import { isPrivateAddress, isPrivateHostname } from "./net-guard";
 
-const USER_AGENT = "Mozilla/5.0 (compatible; OGStudioBot/1.0)";
+const USER_AGENT = "Mozilla/5.0 (compatible; OGeeBot/1.0)";
 const LOOKUP_FAILURES = new Set(["ENOTFOUND", "ENODATA", "EAI_AGAIN", "EAI_NONAME"]);
 
 // Returns null when DNS isn't available in the runtime, so the literal-host check still applies.

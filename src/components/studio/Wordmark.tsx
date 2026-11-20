@@ -1,4 +1,4 @@
-/** Crop-mark glyph echoing the marks around the canvas on the stage. */
+/** Crop marks with an ogee (S-shaped) curve joining two corners of the trim box. */
 export function Wordmark() {
   return (
     <span className="flex items-center gap-2.5 text-ink">
@@ -11,11 +11,9 @@ export function Wordmark() {
         aria-hidden="true"
       >
         <path d="M2 7h5V2M17 2v5h5M22 17h-5v5M7 22v-5H2" />
-        <rect x="9.5" y="10" width="5" height="4" fill="var(--color-spec)" stroke="none" />
+        <path d="M7 17C12 17 12 7 17 7" stroke="var(--color-spec)" strokeWidth="2.25" />
       </svg>
-      <span className="text-[19px] font-semibold leading-none tracking-[-0.01em]">
-        OG Studio
-      </span>
+      <span className="text-[19px] font-semibold leading-none tracking-[-0.01em]">OGee</span>
     </span>
   );
 }

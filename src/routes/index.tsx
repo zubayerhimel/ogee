@@ -16,28 +16,17 @@ import { Wordmark } from "@/components/studio/Wordmark";
 import { defaultState, type OGState } from "@/lib/og-types";
 import { isLocalUrl, parseMeta, withScheme, type ScrapedMeta } from "@/lib/html-meta";
 import { scrapeUrl } from "@/lib/scrape.functions";
+import { getSiteOrigin } from "@/lib/site-origin";
 
 export const Route = createFileRoute("/")({
   component: Index,
-  head: () => ({
-    meta: [
-      { title: "OG Studio — Open Graph image generator" },
-      {
-        name: "description",
-        content:
-          "Paste any URL, pull its metadata, customize a template and export a 1200×630 social preview image.",
-      },
-      { property: "og:title", content: "OG Studio — Open Graph image generator" },
-      {
-        property: "og:description",
-        content: "Fetch metadata from any URL and export a polished social preview image.",
-      },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: "/" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [{ rel: "canonical", href: "/" }],
-  }),
+  head: () => {
+    const url = `${getSiteOrigin()}/`;
+    return {
+      meta: [{ property: "og:url", content: url }],
+      links: [{ rel: "canonical", href: url }],
+    };
+  },
 });
 
 function Index() {

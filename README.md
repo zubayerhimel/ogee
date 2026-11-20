@@ -1,4 +1,4 @@
-# OG Studio
+# OGee
 
 Paste a URL, pull its Open Graph / Twitter metadata, customize a template on a live canvas, and
 export a share-ready social image (1200×630 and other presets) along with copy-paste meta-tag
