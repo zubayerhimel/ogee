@@ -1,17 +1,20 @@
 import { useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Sparkles, Wand2 } from "lucide-react";
+import { Link2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
-import { ControlPanel } from "@/components/studio/ControlPanel";
 import { ExportDialog } from "@/components/studio/ExportDialog";
-import { Preview } from "@/components/studio/Preview";
+import { Inspector } from "@/components/studio/Inspector";
 import { PreviewTester } from "@/components/studio/PreviewTester";
+import { Stage } from "@/components/studio/Stage";
+import { TemplateStrip } from "@/components/studio/TemplateStrip";
+import { Wordmark } from "@/components/studio/Wordmark";
 import { defaultState, type OGState } from "@/lib/og-types";
-import { isLocalUrl, parseMeta, scrapeUrl, type ScrapedMeta } from "@/lib/scrape.functions";
+import { isLocalUrl, parseMeta, withScheme, type ScrapedMeta } from "@/lib/html-meta";
+import { scrapeUrl } from "@/lib/scrape.functions";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -54,17 +57,18 @@ function Index() {
       logoUrl: meta.logo ?? state.logoUrl,
       imageUrl: meta.image ?? state.imageUrl,
     });
-    toast.success("Metadata loaded");
+    toast.success(`Imported from ${meta.domain}`);
   };
 
   const fetchLocally = async (raw: string) => {
-    const target = raw.startsWith("http") ? raw : `http://${raw}`;
+    const target = withScheme(raw, "http");
     const res = await fetch(target, { mode: "cors" });
     const html = await res.text();
     applyMeta(parseMeta(html, target));
   };
 
-  const handleFetch = async () => {
+  const handleFetch = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!url.trim()) return;
     setLoading(true);
     try {
@@ -78,14 +82,16 @@ function Index() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("LOCAL_URL") || msg === "CORS") {
-        toast.error("Local dev server blocked the request", {
+        toast.error("Your local server blocked the request", {
           description:
-            "Add Access-Control-Allow-Origin: * to your dev server, or expose it with `npx localtunnel --port 3000` and paste the public URL.",
+            "Allow CORS on your dev server (Access-Control-Allow-Origin: *), or expose it with `npx localtunnel --port 3000` and paste the public URL.",
           duration: 9000,
         });
       } else {
-        toast.error("Couldn't fetch that URL", {
-          description: msg || "Enter the details manually below.",
+        toast.error("Couldn't import that page", {
+          description: msg
+            ? `${msg}. You can still type the details in the panel.`
+            : "Check the URL, or type the details in the panel.",
         });
       }
     } finally {
@@ -94,58 +100,58 @@ function Index() {
   };
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-[1500px] px-5 py-8 lg:px-10">
-      <Toaster position="top-center" />
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Sparkles className="h-5 w-5" />
-          </span>
-          <div>
-            <h1 className="text-xl font-semibold">OG Studio</h1>
-            <p className="text-xs text-muted-foreground">
-              Metadata in, share-ready image out.
-            </p>
+    <>
+      <Toaster position="bottom-center" />
+      <header className="sticky top-0 z-30 border-b border-hairline bg-paper/95 backdrop-blur supports-[backdrop-filter]:bg-paper/85">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-3 lg:h-16 lg:flex-nowrap lg:px-6 lg:py-0">
+          <Wordmark />
+          <form
+            onSubmit={handleFetch}
+            className="order-last flex w-full gap-2 lg:order-none lg:max-w-[620px] lg:flex-1"
+          >
+            <div className="relative flex-1">
+              <Link2
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite"
+                aria-hidden="true"
+              />
+              <Input
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="Paste a page URL to import its title, description and image"
+                className="pl-9"
+                aria-label="Page URL to import"
+                inputMode="url"
+                autoComplete="url"
+              />
+            </div>
+            <Button type="submit" variant="outline" disabled={loading} className="w-[92px]">
+              {loading ? <Loader2 className="animate-spin" aria-label="Importing" /> : "Import"}
+            </Button>
+          </form>
+          <div className="ml-auto">
+            <ExportDialog canvasRef={canvasRef} state={state} />
           </div>
         </div>
-        <ExportDialog canvasRef={canvasRef} state={state} />
       </header>
 
-      <section className="mt-8 rounded-2xl border border-border bg-card/70 p-4 shadow-[var(--shadow-panel)] backdrop-blur">
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleFetch()}
-            placeholder="https://your-site.com  or  localhost:3000"
-            className="h-11 flex-1"
-            aria-label="URL to fetch metadata from"
+      <main className="lg:grid lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="flex flex-col gap-10 lg:min-h-[calc(100dvh-4rem)] bg-stage px-5 pb-10 pt-6 lg:px-12">
+          <Stage
+            state={state}
+            canvasRef={canvasRef}
+            onPreset={(preset) => update({ preset })}
           />
-          <Button onClick={handleFetch} disabled={loading} className="h-11 sm:w-40">
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Wand2 className="h-4 w-4" />
-            )}
-            {loading ? "Fetching" : "Fetch metadata"}
-          </Button>
+          <TemplateStrip state={state} update={update} />
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Localhost URLs are fetched straight from your browser — enable CORS on your dev
-          server or tunnel it with <code>npx localtunnel --port 3000</code>.
-        </p>
-      </section>
-
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="lg:sticky lg:top-8 lg:self-start">
-          <Preview state={state} canvasRef={canvasRef} />
-        </div>
-        <aside className="rounded-2xl border border-border bg-card/70 p-5 shadow-[var(--shadow-panel)] backdrop-blur">
-          <ControlPanel state={state} update={update} />
+        <aside
+          aria-label="Edit image"
+          className="border-hairline bg-paper lg:sticky lg:top-16 lg:h-[calc(100dvh-4rem)] lg:overflow-y-auto lg:border-l"
+        >
+          <Inspector state={state} update={update} />
         </aside>
-      </div>
+      </main>
 
       <PreviewTester />
-    </main>
+    </>
   );
 }

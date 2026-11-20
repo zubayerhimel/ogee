@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { absUrl, hostOf, pageTitle, readMetaTags, withScheme } from "./html-meta";
+import { fetchPage } from "./safe-fetch.server";
 
 export type CheckStatus = "pass" | "warn" | "fail";
 
@@ -22,52 +24,14 @@ export type AuditResult = {
   score: number;
 };
 
-const PRIVATE_HOST =
-  /^(localhost|127\.|0\.0\.0\.0|10\.|192\.168\.|169\.254\.|\[?::1\]?|172\.(1[6-9]|2\d|3[01])\.|.*\.local)/i;
-
-function attr(tag: string, name: string): string | null {
-  const m = tag.match(new RegExp(`${name}\\s*=\\s*("([^"]*)"|'([^']*)')`, "i"));
-  return m ? (m[2] ?? m[3] ?? null) : null;
-}
-
-function decode(s: string): string {
-  return s
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#0?39;|&apos;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 export function auditHtml(html: string, pageUrl: string): AuditResult {
-  const map = new Map<string, string>();
-  for (const tag of html.match(/<meta\b[^>]*>/gi) ?? []) {
-    const key = (attr(tag, "property") ?? attr(tag, "name"))?.toLowerCase();
-    const content = attr(tag, "content");
-    if (key && content) map.set(key, decode(content));
-  }
+  const map = readMetaTags(html);
   const get = (k: string) => map.get(k) ?? null;
-  const abs = (v: string | null) => {
-    if (!v) return null;
-    try {
-      return new URL(v, pageUrl).toString();
-    } catch {
-      return null;
-    }
-  };
-  const host = (() => {
-    try {
-      return new URL(pageUrl).host;
-    } catch {
-      return pageUrl;
-    }
-  })();
+  const abs = (v: string | null) => absUrl(v, pageUrl);
+  const host = hostOf(pageUrl);
+  const titleTag = pageTitle(html);
 
-  const titleTag = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1];
-  const ogTitle = get("og:title") ?? (titleTag ? decode(titleTag) : null);
+  const ogTitle = get("og:title") ?? titleTag;
   const ogDesc = get("og:description") ?? get("description");
   const ogImage = abs(get("og:image"));
   const twImage = abs(get("twitter:image"));
@@ -206,20 +170,6 @@ export function auditHtml(html: string, pageUrl: string): AuditResult {
 export const auditUrl = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => z.object({ url: z.string().min(1) }).parse(data))
   .handler(async ({ data }): Promise<AuditResult> => {
-    const raw = data.url.trim();
-    const url = raw.startsWith("http") ? raw : `https://${raw}`;
-    const parsed = new URL(url);
-    if (!["http:", "https:"].includes(parsed.protocol)) {
-      throw new Error("Only http and https URLs are supported.");
-    }
-    if (PRIVATE_HOST.test(parsed.hostname)) throw new Error("LOCAL_URL");
-    const res = await fetch(parsed.toString(), {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; OGStudioBot/1.0)" },
-      redirect: "follow",
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) throw new Error(`Site responded with ${res.status}`);
-    const html = (await res.text()).slice(0, 500_000);
-    const result = auditHtml(html, res.url || parsed.toString());
-    return { ...result, url: parsed.toString(), finalUrl: res.url || parsed.toString() };
+    const { html, url } = await fetchPage(data.url);
+    return { ...auditHtml(html, url), url: withScheme(data.url) };
   });

@@ -33,12 +33,18 @@ export type OGState = {
   preset: Preset;
 };
 
+// maxWeight mirrors the weights loaded from Google Fonts in __root.tsx; anything
+// heavier would be faux-bolded by the browser.
 export const FONTS = [
-  { label: "Space Grotesk", value: "'Space Grotesk'" },
-  { label: "DM Sans", value: "'DM Sans'" },
-  { label: "Instrument Serif", value: "'Instrument Serif'" },
-  { label: "JetBrains Mono", value: "'JetBrains Mono'" },
+  { label: "Space Grotesk", value: "'Space Grotesk'", maxWeight: 700 },
+  { label: "DM Sans", value: "'DM Sans'", maxWeight: 700 },
+  { label: "Instrument Serif", value: "'Instrument Serif'", maxWeight: 400 },
+  { label: "JetBrains Mono", value: "'JetBrains Mono'", maxWeight: 700 },
 ];
+
+export function fontMaxWeight(font: string): number {
+  return FONTS.find((f) => f.value === font)?.maxWeight ?? 700;
+}
 
 export const defaultState: OGState = {
   title: "Design social previews that actually get clicked",

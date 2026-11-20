@@ -6,6 +6,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       className="toaster group"
+      style={{ "--border-radius": "0px" } as React.CSSProperties}
       toastOptions={{
         classNames: {
           toast:

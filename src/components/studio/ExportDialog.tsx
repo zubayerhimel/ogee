@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Copy, Download } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -8,22 +9,28 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { download } from "@/lib/render-og";
 import { PRESETS, type OGState } from "@/lib/og-types";
-import {
-  FRAMEWORKS,
-  PLACEMENT,
-  buildSnippet,
-  type FrameworkId,
-} from "@/lib/meta-snippets";
+import { FRAMEWORKS, PLACEMENT, buildSnippet, type FrameworkId } from "@/lib/meta-snippets";
+import { Segmented } from "./Segmented";
 
-const FORMATS = [
-  { id: "png", label: "PNG", hint: "Best quality" },
-  { id: "jpeg", label: "JPG", hint: "Smallest file" },
-  { id: "webp", label: "WebP", hint: "Modern" },
-] as const;
+type Format = "png" | "jpeg" | "webp";
+
+const FORMATS: { value: Format; label: string; title: string }[] = [
+  { value: "png", label: "PNG", title: "Sharpest text, larger file" },
+  { value: "jpeg", label: "JPG", title: "Smallest file, best for photos" },
+  { value: "webp", label: "WebP", title: "Small and sharp; not every platform reads it" },
+];
+
+const fileName = (format: Format) => `og-image.${format === "jpeg" ? "jpg" : format}`;
 
 export function ExportDialog({
   canvasRef,
@@ -32,92 +39,82 @@ export function ExportDialog({
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   state: OGState;
 }) {
-  const [format, setFormat] = useState<"png" | "jpeg" | "webp">("png");
+  const [format, setFormat] = useState<Format>("png");
   const [framework, setFramework] = useState<FrameworkId>("html");
   const { w, h } = PRESETS[state.preset];
-
   const snippet = buildSnippet(framework, state, format);
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button size="lg">Export image</Button>
+        <Button>
+          <Download />
+          Export
+        </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-[640px]">
         <DialogHeader>
-          <DialogTitle>Export your OG image</DialogTitle>
-          <DialogDescription>
-            Rendered at {w}×{h}. Pick a format and download.
+          <DialogTitle>Export</DialogTitle>
+          <DialogDescription className="text-[14px]">
+            Download the {w} × {h} image, upload it to your site as{" "}
+            <span className="text-ink">/{fileName(format)}</span>, then add the tags below.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="space-y-1.5">
+            <p className="text-[12px] font-medium text-graphite">
               Format
-            </Label>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {FORMATS.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setFormat(f.id)}
-                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-                    format === f.id
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:border-muted-foreground"
-                  }`}
-                >
-                  <div className="text-sm font-medium">{f.label}</div>
-                  <div className="text-xs text-muted-foreground">{f.hint}</div>
-                </button>
-              ))}
-            </div>
+            </p>
+            <Segmented label="Format" value={format} options={FORMATS} onChange={setFormat} />
           </div>
-          <div>
-            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-              Framework
-            </Label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {FRAMEWORKS.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setFramework(f.id)}
-                  title={f.hint}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                    framework === f.id
-                      ? "border-primary bg-primary/10 text-foreground"
-                      : "border-border text-muted-foreground hover:border-muted-foreground"
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
+          <Button
+            onClick={() => {
+              const canvas = canvasRef.current;
+              if (!canvas) return;
+              download(canvas, format);
+              toast.success(`Downloaded ${fileName(format)}`);
+            }}
+          >
+            <Download />
+            Download {format === "jpeg" ? "JPG" : format.toUpperCase()}
+          </Button>
+        </div>
+
+        <div className="border-t border-hairline pt-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="w-[200px] space-y-1.5">
+              <label htmlFor="framework" className="text-[12px] font-medium text-graphite">
+                Meta tags for
+              </label>
+              <Select value={framework} onValueChange={(v) => setFramework(v as FrameworkId)}>
+                <SelectTrigger id="framework">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FRAMEWORKS.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">{PLACEMENT[framework]}</p>
-          </div>
-          <pre className="max-h-60 overflow-auto rounded-lg border border-border bg-secondary/50 p-3 text-xs text-muted-foreground">
-            {snippet}
-          </pre>
-          <div className="flex flex-wrap gap-2">
             <Button
-              onClick={() => {
-                const canvas = canvasRef.current;
-                if (!canvas) return;
-                download(canvas, format);
-                toast.success("Image downloaded");
-              }}
-            >
-              Download {format.toUpperCase()}
-            </Button>
-            <Button
-              variant="secondary"
+              variant="outline"
               onClick={async () => {
                 await navigator.clipboard.writeText(snippet);
-                toast.success("Meta tags copied");
+                toast.success("Copied meta tags");
               }}
             >
+              <Copy />
               Copy meta tags
             </Button>
           </div>
+          <p className="mt-3 text-[13px] text-graphite">{PLACEMENT[framework]}</p>
+          <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-wash p-4 font-mono text-[12px] leading-relaxed text-ink">
+            {snippet}
+          </pre>
         </div>
       </DialogContent>
     </Dialog>

@@ -1,20 +1,35 @@
-import { PRESETS, type OGState } from "./og-types";
+import { isLocalUrl } from "./html-meta";
+import { fontMaxWeight, PRESETS, type OGState } from "./og-types";
 
-const imageCache = new Map<string, HTMLImageElement>();
+// Failed loads are cached too, so slider drags don't re-request broken URLs.
+const imageCache = new Map<string, Promise<HTMLImageElement>>();
+
+/** Remote images go through the same-origin proxy so the canvas stays untainted. */
+export function imageSrc(src: string): string {
+  if (!/^https?:\/\//i.test(src) || isLocalUrl(src)) return src;
+  return `/api/image?url=${encodeURIComponent(src)}`;
+}
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
-  const cached = imageCache.get(src);
-  if (cached) return Promise.resolve(cached);
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      imageCache.set(src, img);
-      resolve(img);
-    };
-    img.onerror = () => reject(new Error("Could not load image"));
-    img.src = src;
-  });
+  let pending = imageCache.get(src);
+  if (!pending) {
+    pending = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Could not load image"));
+      img.src = imageSrc(src);
+    });
+    imageCache.set(src, pending);
+  }
+  return pending;
+}
+
+async function loadFonts(font: string, weights: number[]): Promise<void> {
+  if (typeof document === "undefined" || !document.fonts) return;
+  await Promise.all(
+    [...new Set(weights)].map((w) => document.fonts.load(`${w} 32px ${font}`).catch(() => [])),
+  );
 }
 
 function wrap(
@@ -81,10 +96,35 @@ function drawCover(
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 
+/**
+ * Loads images/fonts first, then draws synchronously so overlapping renders can't
+ * interleave. `isStale` lets the caller drop renders superseded by newer state.
+ */
 export async function renderOG(
   canvas: HTMLCanvasElement,
   state: OGState,
+  isStale: () => boolean = () => false,
 ): Promise<void> {
+  const maxWeight = fontMaxWeight(state.font);
+  const weight = (n: number) => Math.min(n, maxWeight);
+  const [image, logo] = await Promise.all([
+    state.imageUrl && state.imageMode !== "none"
+      ? loadImage(state.imageUrl).catch(() => null)
+      : null,
+    state.logoUrl ? loadImage(state.logoUrl).catch(() => null) : null,
+    loadFonts(state.font, [400, 500, 600, 700].map(weight)),
+  ]);
+  if (isStale()) return;
+  draw(canvas, state, image, logo, weight);
+}
+
+function draw(
+  canvas: HTMLCanvasElement,
+  state: OGState,
+  image: HTMLImageElement | null,
+  logo: HTMLImageElement | null,
+  weight: (n: number) => number,
+): void {
   const { w, h } = PRESETS[state.preset];
   canvas.width = w;
   canvas.height = h;
@@ -113,36 +153,29 @@ export async function renderOG(
   let textWidth = w - pad * 2;
   let sideImage: HTMLImageElement | null = null;
 
-  if (state.imageUrl && state.imageMode !== "none") {
-    try {
-      const img = await loadImage(state.imageUrl);
-      if (state.imageMode === "cover") {
-        drawCover(ctx, img, 0, 0, w, h);
-        ctx.fillStyle = `rgba(0,0,0,${state.overlay})`;
-        ctx.fillRect(0, 0, w, h);
-        const g2 = ctx.createLinearGradient(0, 0, w, 0);
-        g2.addColorStop(0, "rgba(0,0,0,0.55)");
-        g2.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = g2;
-        ctx.fillRect(0, 0, w, h);
-      } else {
-        sideImage = img;
-      }
-    } catch {
-      /* ignore broken image */
-    }
+  if (image && state.imageMode === "cover") {
+    drawCover(ctx, image, 0, 0, w, h);
+    ctx.fillStyle = `rgba(0,0,0,${state.overlay})`;
+    ctx.fillRect(0, 0, w, h);
+    const g2 = ctx.createLinearGradient(0, 0, w, 0);
+    g2.addColorStop(0, "rgba(0,0,0,0.55)");
+    g2.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g2;
+    ctx.fillRect(0, 0, w, h);
+  } else if (image && state.imageMode === "side") {
+    sideImage = image;
   }
 
   if (sideImage) {
-    const iw = Math.round(w * 0.4);
-    const ix = w - iw - pad / 2;
-    const iy = pad / 2;
-    const ih = h - pad;
-    ctx.save();
-    roundRect(ctx, ix, iy, iw, ih, 28);
-    ctx.clip();
-    drawCover(ctx, sideImage, ix, iy, iw, ih);
-    ctx.restore();
+    // Fit the whole image inside the panel (no cropping), right-aligned and vertically centred.
+    const boxW = Math.round(w * 0.4);
+    const boxH = h - pad;
+    const scale = Math.min(boxW / sideImage.width, boxH / sideImage.height);
+    const iw = Math.round(sideImage.width * scale);
+    const ih = Math.round(sideImage.height * scale);
+    const ix = w - pad / 2 - iw;
+    const iy = Math.round((h - ih) / 2);
+    ctx.drawImage(sideImage, ix, iy, iw, ih);
     textWidth = ix - pad - 40;
   }
 
@@ -172,14 +205,14 @@ export async function renderOG(
 
   // Badge row
   if (state.badge.trim()) {
-    ctx.font = `600 ${Math.round(state.descSize * 0.72)}px ${state.font}, sans-serif`;
+    ctx.font = `${weight(600)} ${Math.round(state.descSize * 0.72)}px ${state.font}, sans-serif`;
     ctx.fillStyle = state.accent;
     ctx.fillText(state.badge.toUpperCase(), originX, y + state.descSize * 0.6);
     y += state.descSize * 1.5;
   }
 
   // Title
-  ctx.font = `700 ${state.titleSize}px ${state.font}, sans-serif`;
+  ctx.font = `${weight(700)} ${state.titleSize}px ${state.font}, sans-serif`;
   ctx.fillStyle = state.textColor;
   const titleLines = wrap(ctx, state.title, textWidth, 3);
   const titleLh = state.titleSize * 1.14;
@@ -189,13 +222,23 @@ export async function renderOG(
     y += titleLh;
   }
 
-  // Description
+  // Description: only as many lines (max 3) as fit above the footer.
+  const footerY = h - pad;
+  const logoSize = 46;
+  const domainSize = Math.round(state.descSize * 0.78);
+  const footerTop = logo
+    ? footerY - logoSize + 4
+    : state.domain.trim()
+      ? footerY - domainSize
+      : h - pad / 2;
   if (state.description.trim()) {
     ctx.font = `400 ${state.descSize}px ${state.font}, sans-serif`;
     ctx.globalAlpha = 0.82;
-    const descLines = wrap(ctx, state.description, textWidth, 3);
     const descLh = state.descSize * 1.4;
     y += descLh * 0.35;
+    const room = footerTop - 24 - state.descSize * 0.25 - y;
+    const maxLines = Math.min(3, Math.floor(room / descLh) + 1);
+    const descLines = maxLines > 0 ? wrap(ctx, state.description, textWidth, maxLines) : [];
     for (const line of descLines) {
       ctx.fillText(line, originX, y);
       y += descLh;
@@ -204,28 +247,23 @@ export async function renderOG(
   }
 
   // Footer: logo + domain
-  const footerY = h - pad;
   let fx = originX;
-  const logoSize = 46;
-  if (state.logoUrl) {
-    try {
-      const logo = await loadImage(state.logoUrl);
-      const lx = centered
-        ? w / 2 - (logoSize + 14 + ctx.measureText(state.domain).width) / 2
-        : pad;
-      ctx.save();
-      roundRect(ctx, lx, footerY - logoSize + 4, logoSize, logoSize, 12);
-      ctx.clip();
-      drawCover(ctx, logo, lx, footerY - logoSize + 4, logoSize, logoSize);
-      ctx.restore();
-      fx = lx + logoSize + 16;
-      ctx.textAlign = "left";
-    } catch {
-      /* ignore */
-    }
+  const domainFont = `${weight(500)} ${domainSize}px ${state.font}, sans-serif`;
+  ctx.font = domainFont;
+  if (logo) {
+    const lx = centered
+      ? w / 2 - (logoSize + 16 + ctx.measureText(state.domain).width) / 2
+      : pad;
+    ctx.save();
+    roundRect(ctx, lx, footerY - logoSize + 4, logoSize, logoSize, 12);
+    ctx.clip();
+    drawCover(ctx, logo, lx, footerY - logoSize + 4, logoSize, logoSize);
+    ctx.restore();
+    fx = lx + logoSize + 16;
+    ctx.textAlign = "left";
   }
   if (state.domain.trim()) {
-    ctx.font = `500 ${Math.round(state.descSize * 0.78)}px ${state.font}, sans-serif`;
+    ctx.font = domainFont;
     ctx.fillStyle = state.textColor;
     ctx.globalAlpha = 0.7;
     ctx.fillText(state.domain, fx, footerY);
