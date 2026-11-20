@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Download } from "lucide-react";
+import { Check, Copy, Download, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { download } from "@/lib/render-og";
+import { download, renderOG } from "@/lib/render-og";
 import { PRESETS, type OGState } from "@/lib/og-types";
 import { FRAMEWORKS, PLACEMENT, buildSnippet, type FrameworkId } from "@/lib/meta-snippets";
 import { Segmented } from "./Segmented";
@@ -32,15 +32,10 @@ const FORMATS: { value: Format; label: string; title: string }[] = [
 
 const fileName = (format: Format) => `og-image.${format === "jpeg" ? "jpg" : format}`;
 
-export function ExportDialog({
-  canvasRef,
-  state,
-}: {
-  canvasRef: React.RefObject<HTMLCanvasElement | null>;
-  state: OGState;
-}) {
+export function ExportDialog({ state }: { state: OGState }) {
   const [format, setFormat] = useState<Format>("png");
   const [framework, setFramework] = useState<FrameworkId>("html");
+  const [exporting, setExporting] = useState(false);
   const { w, h } = PRESETS[state.preset];
   const snippet = buildSnippet(framework, state, format);
   const [copied, setCopied] = useState(false);
@@ -72,14 +67,23 @@ export function ExportDialog({
             <Segmented label="Format" value={format} options={FORMATS} onChange={setFormat} />
           </div>
           <Button
-            onClick={() => {
-              const canvas = canvasRef.current;
-              if (!canvas) return;
-              download(canvas, format);
-              toast.success(`Downloaded ${fileName(format)}`);
+            disabled={exporting}
+            onClick={async () => {
+              setExporting(true);
+              try {
+                // Render fresh so the file never captures a frame still waiting on fonts/images.
+                const canvas = document.createElement("canvas");
+                await renderOG(canvas, state);
+                download(canvas, format);
+                toast.success(`Downloaded ${fileName(format)}`);
+              } catch {
+                toast.error("Couldn't export the image");
+              } finally {
+                setExporting(false);
+              }
             }}
           >
-            <Download />
+            {exporting ? <Loader2 className="animate-spin" /> : <Download />}
             Download {format === "jpeg" ? "JPG" : format.toUpperCase()}
           </Button>
         </div>

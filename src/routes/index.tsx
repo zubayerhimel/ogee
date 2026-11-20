@@ -122,7 +122,7 @@ function Index() {
           </form>
           <div className="ml-auto flex items-center gap-3">
             <ThemeSwitcher />
-            <ExportDialog canvasRef={canvasRef} state={state} />
+            <ExportDialog state={state} />
           </div>
         </div>
       </header>
