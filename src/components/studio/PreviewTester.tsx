@@ -4,8 +4,15 @@ import { CircleAlert, CircleCheck, CircleX, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { auditUrl, type AuditResult, type CheckStatus } from "@/lib/audit.functions";
+import {
+  auditUrl,
+  type AuditResult,
+  type CheckGroup,
+  type CheckStatus,
+} from "@/lib/audit.functions";
 import { cn } from "@/lib/utils";
+
+const GROUP_ORDER: CheckGroup[] = ["Open Graph", "X / Twitter", "Image file", "Page"];
 
 const STATUS: Record<CheckStatus, { Icon: typeof CircleCheck; tone: string; label: string }> = {
   pass: { Icon: CircleCheck, tone: "text-pass", label: "Passes" },
@@ -97,8 +104,8 @@ export function PreviewTester() {
             Check a live page
           </h2>
           <p className="mt-2 max-w-[36ch] text-[15px] text-graphite">
-            See how a published URL unfurls when it’s shared, and which Open Graph and X tags it
-            is missing.
+            See how a published URL unfurls when it’s shared, which Open Graph and X tags it is
+            missing, and whether its image actually loads at the right size.
           </p>
           <form
             className="mt-6 flex gap-2"
@@ -138,10 +145,10 @@ export function PreviewTester() {
               </div>
               <p className="mt-3 text-[14px] text-graphite">
                 {counts.fail === 0 && counts.warn === 0
-                  ? "Every tag we look for is present."
+                  ? "Every check passes."
                   : [
-                      counts.fail ? `${plural(counts.fail, "tag")} missing` : null,
-                      counts.warn ? `${plural(counts.warn, "tag")} could be better` : null,
+                      counts.fail ? `${plural(counts.fail, "problem")} to fix` : null,
+                      counts.warn ? `${plural(counts.warn, "item")} could be better` : null,
                     ]
                       .filter(Boolean)
                       .join(", ")}
@@ -156,29 +163,40 @@ export function PreviewTester() {
               <UnfurlCard result={result} />
               <p className="text-[12px] text-graphite">Approximate preview. Each platform crops slightly differently.</p>
             </div>
-            <ul className="divide-y divide-hairline border-y border-hairline">
-              {result.checks.map((c, i) => {
-                const { Icon, tone, label } = STATUS[c.status];
+            <div className="space-y-6">
+              {GROUP_ORDER.map((group) => {
+                const checks = result.checks.filter((c) => c.group === group);
+                if (!checks.length) return null;
                 return (
-                  <li
-                    key={c.key}
-                    className="grid animate-rise grid-cols-[20px_minmax(0,1fr)] gap-x-3 py-3"
-                    style={stagger(i)}
-                  >
-                    <Icon className={cn("mt-0.5 h-[18px] w-[18px]", tone)} aria-label={label} />
-                    <div className="min-w-0">
-                      <p className="text-[14px] font-medium">{c.label}</p>
-                      {c.value ? (
-                        <p className="truncate text-[13px] text-ink/80" title={c.value}>
-                          {c.value}
-                        </p>
-                      ) : null}
-                      <p className="text-[13px] text-graphite">{c.note}</p>
-                    </div>
-                  </li>
+                  <section key={group} aria-label={group}>
+                    <h3 className="mb-1 text-[12px] font-medium text-graphite">{group}</h3>
+                    <ul className="divide-y divide-hairline border-y border-hairline">
+                      {checks.map((c) => {
+                        const { Icon, tone, label } = STATUS[c.status];
+                        return (
+                          <li
+                            key={c.key}
+                            className="grid animate-rise grid-cols-[20px_minmax(0,1fr)] gap-x-3 py-3"
+                            style={stagger(result.checks.indexOf(c))}
+                          >
+                            <Icon className={cn("mt-0.5 h-[18px] w-[18px]", tone)} aria-label={label} />
+                            <div className="min-w-0">
+                              <p className="text-[14px] font-medium">{c.label}</p>
+                              {c.value ? (
+                                <p className="truncate text-[13px] text-ink/80" title={c.value}>
+                                  {c.value}
+                                </p>
+                              ) : null}
+                              <p className="text-[13px] text-graphite">{c.note}</p>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
                 );
               })}
-            </ul>
+            </div>
           </div>
         ) : (
           <div className="flex min-h-[260px] flex-col items-start justify-center rounded-xl border border-dashed border-hairline-strong px-8 py-10">

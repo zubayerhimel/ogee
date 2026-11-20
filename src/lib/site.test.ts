@@ -16,7 +16,9 @@ describe("siteMeta", () => {
             : `<meta name="${m.name}" content="${esc(m.content)}">`,
       )
       .join("");
-    const result = auditHtml(`<html><head>${tags}</head></html>`, `${origin}/`);
+    // The index route adds the canonical link alongside these tags.
+    const canonical = `<link rel="canonical" href="${origin}/">`;
+    const result = auditHtml(`<html><head>${tags}${canonical}</head></html>`, `${origin}/`);
 
     expect(result.checks.filter((c) => c.status !== "pass")).toEqual([]);
     expect(result.score).toBe(100);
