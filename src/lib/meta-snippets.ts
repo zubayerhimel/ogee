@@ -29,10 +29,32 @@ export type SnippetOptions = {
   imageUrl?: string;
   siteName?: string;
   imageAlt?: string;
+  /** Pixel density of the exported file, so og:image:width/height match it. */
+  scale?: number;
 };
 
-export const imageFileName = (format: ImageFormat) =>
-  `og-image.${format === "jpeg" ? "jpg" : format}`;
+/** A URL- and filesystem-safe name from the title, e.g. "Ship faster" → "ship-faster". */
+export function slugify(text: string, max = 60): string {
+  const slug = text
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (slug.length <= max) return slug;
+  const cut = slug.slice(0, max + 1);
+  // Prefer ending on a whole word.
+  const lastDash = cut.lastIndexOf("-");
+  return (lastDash > max / 2 ? cut.slice(0, lastDash) : slug.slice(0, max)).replace(/-+$/, "");
+}
+
+export const extension = (format: ImageFormat) => (format === "jpeg" ? "jpg" : format);
+
+/** File name for the exported image, based on the title; `suffix` is e.g. "-1200x630". */
+export function imageFileName(format: ImageFormat, title = "", suffix = ""): string {
+  return `${slugify(title) || "og-image"}${suffix}.${extension(format)}`;
+}
 
 function toAbsolute(raw: string): string | null {
   const t = raw.trim();
@@ -49,9 +71,9 @@ export function defaultPageUrl(state: OGState): string {
   return toAbsolute(state.domain) ?? "https://your-site.com/";
 }
 
-export function defaultImageUrl(pageUrl: string, format: ImageFormat): string {
+export function defaultImageUrl(pageUrl: string, format: ImageFormat, title = ""): string {
   const base = toAbsolute(pageUrl) ?? "https://your-site.com/";
-  return new URL(`/${imageFileName(format)}`, base).toString();
+  return new URL(`/${imageFileName(format, title)}`, base).toString();
 }
 
 type Tag = { attr: "name" | "property"; key: string; content: string };
@@ -74,9 +96,12 @@ export function resolveTags(
   format: ImageFormat,
   opts: SnippetOptions = {},
 ): ResolvedTags {
-  const { w, h } = PRESETS[state.preset];
+  const scale = opts.scale ?? 1;
+  const w = Math.round(PRESETS[state.preset].w * scale);
+  const h = Math.round(PRESETS[state.preset].h * scale);
   const pageUrl = toAbsolute(opts.pageUrl ?? "") ?? defaultPageUrl(state);
-  const imageUrl = toAbsolute(opts.imageUrl ?? "") ?? defaultImageUrl(pageUrl, format);
+  const imageUrl =
+    toAbsolute(opts.imageUrl ?? "") ?? defaultImageUrl(pageUrl, format, state.title);
   const siteName = opts.siteName?.trim() ?? "";
   const imageAlt = opts.imageAlt?.trim() || state.title;
   const imageType = `image/${format}`;

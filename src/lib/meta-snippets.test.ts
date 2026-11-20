@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FRAMEWORKS, buildSnippet, resolveTags } from "./meta-snippets";
+import { FRAMEWORKS, buildSnippet, imageFileName, resolveTags } from "./meta-snippets";
 import { defaultState } from "./og-types";
 
 const state = { ...defaultState, title: 'Say "hi" <now>', domain: "example.com" };
@@ -14,9 +14,25 @@ describe("resolveTags", () => {
     expect(t.imageUrl).toBe("https://cdn.example.com/hello.png");
   });
 
-  it("derives the image URL from the page origin when left blank", () => {
+  it("derives the image URL from the page origin and title when left blank", () => {
     const t = resolveTags(state, "jpeg", { pageUrl: "https://x.dev/a/b" });
-    expect(t.imageUrl).toBe("https://x.dev/og-image.jpg");
+    expect(t.imageUrl).toBe("https://x.dev/say-hi-now.jpg");
+  });
+
+  it("reports the real pixel size of a 2× export", () => {
+    const t = resolveTags(state, "png", { scale: 2 });
+    expect([t.w, t.h]).toEqual([2400, 1260]);
+  });
+});
+
+describe("imageFileName", () => {
+  it("slugs the title, keeping whole words and falling back when empty", () => {
+    expect(imageFileName("png", "Crème brûlée & Co.")).toBe("creme-brulee-and-co.png");
+    expect(imageFileName("jpeg", "  !!! ")).toBe("og-image.jpg");
+    expect(imageFileName("webp", "Hi", "-1200x630")).toBe("hi-1200x630.webp");
+    const long = imageFileName("png", "word ".repeat(30));
+    expect(long.length).toBeLessThanOrEqual(64);
+    expect(long).toMatch(/^(word-)*word\.png$/);
   });
 });
 

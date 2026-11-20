@@ -168,6 +168,8 @@ export type TextLayout = { title: Rect[]; description: Rect[] };
 export type RenderOptions = {
   /** Draw everything except text, so the pixels behind it can be sampled. */
   skipText?: boolean;
+  /** Pixel density; 2 exports a 2400×1260 file for a 1200×630 design. */
+  scale?: number;
 };
 
 /**
@@ -203,14 +205,17 @@ function draw(
   image: HTMLImageElement | null,
   logo: HTMLImageElement | null,
   weight: (n: number) => number,
-  { skipText = false }: RenderOptions,
+  { skipText = false, scale = 1 }: RenderOptions,
 ): TextLayout {
   const layout: TextLayout = { title: [], description: [] };
   const { w, h } = PRESETS[state.preset];
-  canvas.width = w;
-  canvas.height = h;
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
   const ctx = canvas.getContext("2d");
   if (!ctx) return layout;
+  // Everything below draws in design units; the transform supplies the extra pixels.
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.imageSmoothingQuality = "high";
   const fillText = (text: string, x: number, y: number, size?: number, into?: Rect[]) => {
     if (into && size) {
       const width = ctx.measureText(text).width;
@@ -371,11 +376,26 @@ function draw(
   return layout;
 }
 
-export function download(canvas: HTMLCanvasElement, format: "png" | "jpeg" | "webp") {
-  const mime = `image/${format}`;
-  const url = canvas.toDataURL(mime, 0.92);
+export function encodeCanvas(
+  canvas: HTMLCanvasElement,
+  format: "png" | "jpeg" | "webp",
+  quality = 0.92,
+): Promise<Blob> {
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Could not encode the image"))),
+      `image/${format}`,
+      quality,
+    ),
+  );
+}
+
+export function saveBlob(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `og-image.${format === "jpeg" ? "jpg" : format}`;
+  a.download = name;
   a.click();
+  // Give the download a moment to start before the URL is released.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }

@@ -40,3 +40,24 @@ export function describeCrop(w: number, h: number, ratio: number | null): string
   if (x <= 2 && y <= 2) return "Shown in full";
   return x ? `Crops ${x} px from the left and right` : `Crops ${y} px from the top and bottom`;
 }
+
+/**
+ * Published (or widely observed) image size limits. `hard` limits make the platform drop
+ * the image; soft ones are where previews start to go missing in practice.
+ */
+export const FILE_LIMITS: { name: string; bytes: number; hard: boolean }[] = [
+  { name: "WhatsApp", bytes: 600 * 1024, hard: false },
+  { name: "X", bytes: 5 * 1024 * 1024, hard: true },
+  { name: "LinkedIn", bytes: 5 * 1024 * 1024, hard: true },
+  { name: "Facebook", bytes: 8 * 1024 * 1024, hard: true },
+];
+
+export function exceededLimits(bytes: number) {
+  return FILE_LIMITS.filter((l) => bytes > l.bytes);
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
