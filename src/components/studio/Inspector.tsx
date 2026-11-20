@@ -298,17 +298,39 @@ export function Inspector({ state, update }: { state: OGState; update: Update })
       </Section>
 
       <Section title="Colour">
+        <Segmented
+          label="Background fill"
+          className="flex w-full"
+          value={state.bgMode}
+          onChange={(v) => update({ bgMode: v })}
+          options={[
+            { value: "solid", label: "Solid" },
+            { value: "gradient", label: "Gradient" },
+          ]}
+        />
         <div className="grid grid-cols-2 gap-3">
-          <ColorField
-            label="Background start"
-            value={state.bgFrom}
-            onChange={(v) => update({ bgFrom: v })}
-          />
-          <ColorField
-            label="Background end"
-            value={state.bgTo}
-            onChange={(v) => update({ bgTo: v })}
-          />
+          {state.bgMode === "solid" ? (
+            <div className="col-span-2">
+              <ColorField
+                label="Background"
+                value={state.bgFrom}
+                onChange={(v) => update({ bgFrom: v })}
+              />
+            </div>
+          ) : (
+            <>
+              <ColorField
+                label="Background start"
+                value={state.bgFrom}
+                onChange={(v) => update({ bgFrom: v })}
+              />
+              <ColorField
+                label="Background end"
+                value={state.bgTo}
+                onChange={(v) => update({ bgTo: v })}
+              />
+            </>
+          )}
           <ColorField
             label="Text"
             value={state.textColor}
@@ -316,14 +338,16 @@ export function Inspector({ state, update }: { state: OGState; update: Update })
           />
           <ColorField label="Accent" value={state.accent} onChange={(v) => update({ accent: v })} />
         </div>
-        <SliderField
-          label="Gradient angle"
-          value={state.bgAngle}
-          min={0}
-          max={360}
-          suffix="°"
-          onChange={(v) => update({ bgAngle: v })}
-        />
+        {state.bgMode === "gradient" ? (
+          <SliderField
+            label="Gradient angle"
+            value={state.bgAngle}
+            min={0}
+            max={360}
+            suffix="°"
+            onChange={(v) => update({ bgAngle: v })}
+          />
+        ) : null}
       </Section>
 
       <Section title="Layout">

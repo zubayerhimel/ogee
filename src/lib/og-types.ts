@@ -12,6 +12,8 @@ export const FRAME_RATIO = Math.min(...Object.values(PRESETS).map((p) => p.w / p
 
 export type Align = "left" | "center";
 
+export type BgMode = "solid" | "gradient";
+
 export type OGState = {
   title: string;
   description: string;
@@ -20,6 +22,7 @@ export type OGState = {
   logoUrl: string | null;
   imageUrl: string | null;
   imageMode: "none" | "cover" | "side";
+  bgMode: BgMode;
   bgFrom: string;
   bgTo: string;
   bgAngle: number;
@@ -112,6 +115,7 @@ export const defaultState: OGState = {
   logoUrl: null,
   imageUrl: null,
   imageMode: "none",
+  bgMode: "solid",
   bgFrom: "#0b1020",
   bgTo: "#1d2a4d",
   bgAngle: 135,
@@ -135,6 +139,7 @@ export const TEMPLATES: Template[] = [
     id: "midnight",
     name: "Midnight",
     patch: {
+      bgMode: "gradient",
       bgFrom: "#0b1020",
       bgTo: "#1d2a4d",
       textColor: "#f5f7ff",
@@ -149,6 +154,7 @@ export const TEMPLATES: Template[] = [
     id: "paper",
     name: "Paper",
     patch: {
+      bgMode: "gradient",
       bgFrom: "#faf7f0",
       bgTo: "#efe7d8",
       textColor: "#1b1a17",
@@ -163,6 +169,7 @@ export const TEMPLATES: Template[] = [
     id: "terminal",
     name: "Terminal",
     patch: {
+      bgMode: "gradient",
       bgFrom: "#04140f",
       bgTo: "#062b1e",
       textColor: "#d6ffe9",
@@ -178,6 +185,7 @@ export const TEMPLATES: Template[] = [
     id: "sunset",
     name: "Sunset",
     patch: {
+      bgMode: "gradient",
       bgFrom: "#3b0d2e",
       bgTo: "#f0682f",
       textColor: "#fff6ec",
@@ -191,6 +199,7 @@ export const TEMPLATES: Template[] = [
     id: "centered",
     name: "Centered",
     patch: {
+      bgMode: "gradient",
       bgFrom: "#101014",
       bgTo: "#26262e",
       textColor: "#ffffff",
@@ -219,6 +228,7 @@ export const TEMPLATES: Template[] = [
     name: "Split",
     patch: {
       imageMode: "side",
+      bgMode: "gradient",
       bgFrom: "#0f172a",
       bgTo: "#111827",
       textColor: "#eef2ff",
@@ -232,6 +242,7 @@ export const TEMPLATES: Template[] = [
     id: "mint",
     name: "Mint",
     patch: {
+      bgMode: "gradient",
       bgFrom: "#e8fff6",
       bgTo: "#c8f4e2",
       textColor: "#04231a",

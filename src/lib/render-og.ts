@@ -167,20 +167,24 @@ function draw(
 
   ctx.clearRect(0, 0, w, h);
 
-  // Background gradient
-  const rad = (state.bgAngle * Math.PI) / 180;
-  const cx = w / 2;
-  const cy = h / 2;
-  const len = Math.abs(w * Math.cos(rad)) + Math.abs(h * Math.sin(rad));
-  const grad = ctx.createLinearGradient(
-    cx - (Math.cos(rad) * len) / 2,
-    cy - (Math.sin(rad) * len) / 2,
-    cx + (Math.cos(rad) * len) / 2,
-    cy + (Math.sin(rad) * len) / 2,
-  );
-  grad.addColorStop(0, state.bgFrom);
-  grad.addColorStop(1, state.bgTo);
-  ctx.fillStyle = grad;
+  // Background
+  if (state.bgMode === "solid") {
+    ctx.fillStyle = state.bgFrom;
+  } else {
+    const rad = (state.bgAngle * Math.PI) / 180;
+    const cx = w / 2;
+    const cy = h / 2;
+    const len = Math.abs(w * Math.cos(rad)) + Math.abs(h * Math.sin(rad));
+    const grad = ctx.createLinearGradient(
+      cx - (Math.cos(rad) * len) / 2,
+      cy - (Math.sin(rad) * len) / 2,
+      cx + (Math.cos(rad) * len) / 2,
+      cy + (Math.sin(rad) * len) / 2,
+    );
+    grad.addColorStop(0, state.bgFrom);
+    grad.addColorStop(1, state.bgTo);
+    ctx.fillStyle = grad;
+  }
   ctx.fillRect(0, 0, w, h);
 
   const pad = state.padding;
