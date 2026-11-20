@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Link2, Loader2 } from "lucide-react";
+import { Link2, Loader2, Redo2, Share2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Toaster } from "@/components/ui/sonner";
@@ -13,7 +13,8 @@ import { Stage } from "@/components/studio/Stage";
 import { TemplateStrip } from "@/components/studio/TemplateStrip";
 import { ThemeSwitcher } from "@/components/studio/ThemeSwitcher";
 import { Wordmark } from "@/components/studio/Wordmark";
-import { defaultState, type OGState } from "@/lib/og-types";
+import { defaultState } from "@/lib/og-types";
+import { shareUrl, useDesign } from "@/lib/design-state";
 import { isLocalUrl, parseMeta, withScheme, type ScrapedMeta } from "@/lib/html-meta";
 import { scrapeUrl } from "@/lib/scrape.functions";
 import { getSiteOrigin } from "@/lib/site-origin";
@@ -32,15 +33,53 @@ export const Route = createFileRoute("/")({
 function Index() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
-  const [state, setState] = useState<OGState>(defaultState);
+  const { state, update, apply, undo, redo, canUndo, canRedo, restored } = useDesign();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const scrape = useServerFn(scrapeUrl);
 
-  const update = (patch: Partial<OGState>) => setState((s) => ({ ...s, ...patch }));
+  useEffect(() => {
+    if (restored === "link") toast.success("Opened a shared design");
+  }, [restored]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      const isRedo = (key === "z" && e.shiftKey) || (key === "y" && !e.shiftKey);
+      if (key !== "z" && !isRedo) return;
+      // Fields outside the editor (URL boxes, dialogs) keep their own text undo.
+      const field = (e.target as Element | null)?.closest?.("input, textarea, [contenteditable]");
+      if (field && !field.closest("[data-design-scope]")) return;
+      e.preventDefault();
+      if (isRedo) redo();
+      else undo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
+
+  const share = async () => {
+    const { url, droppedUploads } = shareUrl(state, window.location.href);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied", {
+        description: droppedUploads
+          ? "Uploaded images aren't included in links. Use an image URL to share them."
+          : "Anyone with the link opens this design.",
+      });
+    } catch {
+      toast.error("Couldn't copy the link");
+    }
+  };
+
+  const [mod, setMod] = useState("Ctrl+");
+  useEffect(() => {
+    if (/Mac|iP(hone|ad)/.test(navigator.platform)) setMod("⌘");
+  }, []);
 
   const applyMeta = (meta: ScrapedMeta) => {
     // Functional update so edits made while the import was in flight aren't overwritten.
-    setState((s) => ({
+    apply((s) => ({
       ...s,
       title: meta.title || s.title,
       description: meta.description || s.description,
@@ -121,6 +160,32 @@ function Index() {
             </Button>
           </form>
           <div className="ml-auto flex items-center gap-3">
+            <div className="flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Undo"
+                title={`Undo (${mod}Z)`}
+                disabled={!canUndo}
+                onClick={undo}
+              >
+                <Undo2 />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Redo"
+                title={`Redo (${mod === "⌘" ? "⌘⇧Z" : "Ctrl+Y"})`}
+                disabled={!canRedo}
+                onClick={redo}
+              >
+                <Redo2 />
+              </Button>
+            </div>
+            <Button variant="outline" onClick={share} aria-label="Copy share link" className="px-2.5 xl:px-4">
+              <Share2 />
+              <span className="hidden xl:inline">Share</span>
+            </Button>
             <ThemeSwitcher />
             <ExportDialog state={state} />
           </div>
@@ -130,13 +195,26 @@ function Index() {
       <main className="lg:grid lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex flex-col gap-10 lg:min-h-[calc(100dvh-4rem)] bg-stage px-5 pb-10 pt-6 lg:px-12">
           <Stage state={state} canvasRef={canvasRef} onPreset={(preset) => update({ preset })} />
-          <TemplateStrip state={state} update={update} />
+          <TemplateStrip state={state} update={(patch) => apply((s) => ({ ...s, ...patch }))} />
         </div>
         <aside
           aria-label="Edit image"
+          data-design-scope
           className="border-hairline bg-paper lg:sticky lg:top-16 lg:h-[calc(100dvh-4rem)] lg:overflow-y-auto lg:border-l"
         >
           <Inspector state={state} update={update} />
+          <div className="border-t border-hairline px-5 py-4 lg:px-6">
+            <Button
+              variant="ghost"
+              className="-ml-3"
+              onClick={() => {
+                apply(() => defaultState);
+                toast("Design reset", { action: { label: "Undo", onClick: undo } });
+              }}
+            >
+              Reset design
+            </Button>
+          </div>
         </aside>
       </main>
 
