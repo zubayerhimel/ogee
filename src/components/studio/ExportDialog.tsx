@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
-  ArrowDown,
+  ArrowRight,
   Check,
+  ChevronRight,
   CircleCheck,
   Copy,
   Download,
@@ -33,6 +34,7 @@ import { encodeCanvas, renderOG, saveBlob } from "@/lib/render-og";
 import { PRESETS, type OGState, type Preset } from "@/lib/og-types";
 import { exceededLimits, formatBytes } from "@/lib/platforms";
 import { createZip } from "@/lib/zip";
+import { cn } from "@/lib/utils";
 import {
   FRAMEWORKS,
   PLACEMENT,
@@ -40,7 +42,6 @@ import {
   defaultImageUrl,
   defaultPageUrl,
   imageFileName,
-  resolveTags,
   type FrameworkId,
   type SnippetOptions,
 } from "@/lib/meta-snippets";
@@ -180,82 +181,88 @@ function LinkField({
   );
 }
 
-function DynamicUrlPanel({
-  url,
-  droppedUploads,
-  inUse,
-  onUse,
-}: {
-  url: string;
-  droppedUploads: boolean;
-  inUse: boolean;
-  onUse: () => void;
-}) {
+function useCopy() {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
+  const copy = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), 2000);
+  };
+  return [copied, copy] as const;
+}
 
+type Tab = "download" | "link" | "tags";
+
+const TABS: { id: Tab; label: string; hint: string }[] = [
+  { id: "download", label: "Download", hint: "Save the image, then upload it with your site." },
+  {
+    id: "link",
+    label: "Image link",
+    hint: "A URL that renders this design whenever it's loaded.",
+  },
+  { id: "tags", label: "Meta tags", hint: "Paste these into your page so platforms find the image." },
+];
+
+function TabBar({ value, onChange }: { value: Tab; onChange: (t: Tab) => void }) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
   return (
-    <div className="border-t border-hairline pt-5">
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-[14px] font-medium text-ink">Or render it on request</h3>
-        <span className="text-[12px] text-graphite">PNG · 1×</span>
-      </div>
-      <p className="mt-1 text-[13px] text-graphite">
-        This URL draws the design whenever it's loaded. Swap <code className="text-ink">title</code>{" "}
-        and <code className="text-ink">description</code> per page, and every post gets its own image
-        without exporting anything.
-      </p>
-      <div className="mt-3 flex gap-2">
-        <Input
-          aria-label="Dynamic image URL"
-          readOnly
-          value={url}
-          spellCheck={false}
-          className="min-w-0 flex-1 font-mono text-[12px]"
-          onFocus={(e) => e.currentTarget.select()}
-        />
-        <Button
-          variant="outline"
-          size="icon"
-          title="Copy URL"
-          aria-label="Copy dynamic image URL"
-          onClick={async () => {
-            await navigator.clipboard.writeText(url);
-            setCopied(true);
-            clearTimeout(timer.current);
-            timer.current = setTimeout(() => setCopied(false), 2000);
-          }}
-        >
-          {copied ? <Check className="text-pass" /> : <Copy />}
-        </Button>
-        <Button variant="outline" size="icon" asChild title="Open in a new tab">
-          <a href={url} target="_blank" rel="noreferrer" aria-label="Open dynamic image">
-            <ExternalLink />
-          </a>
-        </Button>
-      </div>
-      {droppedUploads ? (
-        <p className="mt-2 flex items-start gap-1.5 text-[13px] text-warn">
-          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-          Uploaded images live only in this browser, so the URL leaves them out. Use an image link
-          instead.
-        </p>
-      ) : null}
-      <Button variant="ghost" size="sm" className="mt-2 -ml-2" disabled={inUse} onClick={onUse}>
-        {inUse ? <CircleCheck className="text-pass" /> : <ArrowDown />}
-        {inUse ? "Used in the meta tags below" : "Use in the meta tags below"}
-      </Button>
+    <div role="tablist" aria-label="Export options" className="flex gap-5 border-b border-hairline px-6">
+      {TABS.map((t, i) => {
+        const selected = t.id === value;
+        return (
+          <button
+            key={t.id}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            type="button"
+            role="tab"
+            id={`export-tab-${t.id}`}
+            aria-selected={selected}
+            aria-controls={`export-panel-${t.id}`}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onChange(t.id)}
+            onKeyDown={(e) => {
+              const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+              if (!step) return;
+              e.preventDefault();
+              const next = (i + step + TABS.length) % TABS.length;
+              onChange(TABS[next]!.id);
+              refs.current[next]?.focus();
+            }}
+            className={cn(
+              "-mb-px cursor-pointer border-b-2 pb-2.5 pt-1 text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              selected ? "border-ink text-ink" : "border-transparent text-graphite hover:text-ink",
+            )}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[12px] font-medium text-graphite">{label}</p>
+      {children}
     </div>
   );
 }
 
 export function ExportDialog({ state }: { state: OGState }) {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>("download");
   const [format, setFormat] = useState<Format>("png");
   const [scale, setScale] = useState<1 | 2>(1);
   const [quality, setQuality] = useState(90);
   const [framework, setFramework] = useState<FrameworkId>("html");
+  const [imageSource, setImageSource] = useState<"file" | "link">("file");
   const [exporting, setExporting] = useState<"single" | "all" | null>(null);
   const [opts, setOpts] = useState<Required<Omit<SnippetOptions, "scale">>>({
     pageUrl: "",
@@ -269,18 +276,19 @@ export function ExportDialog({ state }: { state: OGState }) {
   const pixelW = Math.round(PRESETS[state.preset].w * scale);
   const pixelH = Math.round(PRESETS[state.preset].h * scale);
   const name = fileName(format, state.title);
-  const bytes = useEncodedSize(open, state, format, q, scale);
+  const bytes = useEncodedSize(open && tab === "download", state, format, q, scale);
   const dynamic = open ? ogImageUrl(window.location.origin, state) : null;
+
+  const tagImageUrl = imageSource === "link" && dynamic ? dynamic.url : opts.imageUrl;
   // The endpoint always serves a 1× PNG, whatever the download settings are.
-  const tagsFromEndpoint = isOgEndpoint(opts.imageUrl);
+  const tagsFromEndpoint = isOgEndpoint(tagImageUrl);
   const tagFormat = tagsFromEndpoint ? "png" : format;
-  const tagOpts = { ...opts, scale: tagsFromEndpoint ? 1 : scale };
+  const tagOpts = { ...opts, imageUrl: tagImageUrl, scale: tagsFromEndpoint ? 1 : scale };
   const snippet = buildSnippet(framework, state, tagFormat, tagOpts);
-  const resolved = resolveTags(state, tagFormat, tagOpts);
   const defaultPage = defaultPageUrl(state);
-  const [copied, setCopied] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(copiedTimer.current), []);
+  const [snippetCopied, copySnippet] = useCopy();
+  const [linkCopied, copyLink] = useCopy();
+  const activeTab = TABS.find((t) => t.id === tab)!;
 
   const downloadOne = async () => {
     setExporting("single");
@@ -322,6 +330,13 @@ export function ExportDialog({ state }: { state: OGState }) {
     }
   };
 
+  const nextStep = (label: string, onClick: () => void) => (
+    <Button variant="ghost" size="sm" className="-ml-2 text-graphite" onClick={onClick}>
+      {label}
+      <ArrowRight />
+    </Button>
+  );
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -330,152 +345,215 @@ export function ExportDialog({ state }: { state: OGState }) {
           Export
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[92dvh] max-w-[640px] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="flex h-[min(640px,calc(100dvh-2rem))] max-w-[600px] flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="space-y-1 px-6 pb-4 pt-6">
           <DialogTitle>Export</DialogTitle>
-          <DialogDescription className="text-[14px]">
-            Download the image, upload it so it's served at{" "}
-            <span className="break-all text-ink">{resolved.imageUrl}</span>, then add the tags
-            below.
-          </DialogDescription>
+          <DialogDescription className="text-[14px]">{activeTab.hint}</DialogDescription>
         </DialogHeader>
+        <TabBar value={tab} onChange={setTab} />
 
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
-            <div className="space-y-1.5">
-              <p className="text-[12px] font-medium text-graphite">Format</p>
-              <Segmented label="Format" value={format} options={FORMATS} onChange={setFormat} />
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-[12px] font-medium text-graphite">Resolution</p>
-              <Segmented
-                label="Resolution"
-                value={String(scale) as "1" | "2"}
-                onChange={(v) => setScale(v === "2" ? 2 : 1)}
-                options={[
-                  { value: "1", label: "1×", title: "Standard size every platform expects" },
-                  { value: "2", label: "2×", title: "Crisper on high-density screens; larger file" },
-                ]}
-              />
-            </div>
-            {lossy ? (
-              <div className="min-w-[160px] flex-1 space-y-1.5">
-                <div className="flex items-baseline justify-between">
-                  <label htmlFor="export-quality" className="text-[12px] font-medium text-graphite">
-                    Quality
-                  </label>
-                  <span className="text-[13px] text-ink">{quality}%</span>
-                </div>
-                <Slider
-                  id="export-quality"
-                  aria-label="Quality"
-                  className="h-9"
-                  value={[quality]}
-                  min={40}
-                  max={100}
-                  step={1}
-                  onValueChange={(v) => setQuality(v[0] ?? quality)}
-                />
+        <div
+          role="tabpanel"
+          id={`export-panel-${tab}`}
+          aria-labelledby={`export-tab-${tab}`}
+          className="min-h-0 flex-1 overflow-y-auto px-6 py-6"
+        >
+          {tab === "download" ? (
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+                <Field label="Format">
+                  <Segmented label="Format" value={format} options={FORMATS} onChange={setFormat} />
+                </Field>
+                <Field label="Resolution">
+                  <Segmented
+                    label="Resolution"
+                    value={String(scale) as "1" | "2"}
+                    onChange={(v) => setScale(v === "2" ? 2 : 1)}
+                    options={[
+                      { value: "1", label: "1×", title: "Standard size every platform expects" },
+                      { value: "2", label: "2×", title: "Crisper on high-density screens; larger file" },
+                    ]}
+                  />
+                </Field>
+                {lossy ? (
+                  <div className="min-w-[160px] flex-1 space-y-1.5">
+                    <div className="flex items-baseline justify-between">
+                      <label htmlFor="export-quality" className="text-[12px] font-medium text-graphite">
+                        Quality
+                      </label>
+                      <span className="text-[13px] text-ink">{quality}%</span>
+                    </div>
+                    <Slider
+                      id="export-quality"
+                      aria-label="Quality"
+                      className="h-9"
+                      value={[quality]}
+                      min={40}
+                      max={100}
+                      step={1}
+                      onValueChange={(v) => setQuality(v[0] ?? quality)}
+                    />
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
 
-          <SizeReadout name={name} w={pixelW} h={pixelH} bytes={bytes} />
+              <SizeReadout name={name} w={pixelW} h={pixelH} bytes={bytes} />
 
-          <div className="flex flex-wrap gap-2">
-            <Button disabled={exporting !== null} onClick={downloadOne}>
-              {exporting === "single" ? <Loader2 className="animate-spin" /> : <Download />}
-              Download {format === "jpeg" ? "JPG" : format.toUpperCase()}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={exporting !== null}
-              onClick={downloadAll}
-              title={`Every size (${Object.values(PRESETS)
-                .map((p) => `${p.w * scale}×${p.h * scale}`)
-                .join(", ")}) in one ZIP`}
-            >
-              {exporting === "all" ? <Loader2 className="animate-spin" /> : <FileArchive />}
-              All sizes (.zip)
-            </Button>
-          </div>
-        </div>
+              <div className="flex flex-wrap gap-2">
+                <Button disabled={exporting !== null} onClick={downloadOne}>
+                  {exporting === "single" ? <Loader2 className="animate-spin" /> : <Download />}
+                  Download {format === "jpeg" ? "JPG" : format.toUpperCase()}
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={exporting !== null}
+                  onClick={downloadAll}
+                  title={`Every size (${Object.values(PRESETS)
+                    .map((p) => `${p.w * scale}×${p.h * scale}`)
+                    .join(", ")}) in one ZIP`}
+                >
+                  {exporting === "all" ? <Loader2 className="animate-spin" /> : <FileArchive />}
+                  All sizes (.zip)
+                </Button>
+              </div>
 
-        {dynamic ? (
-          <DynamicUrlPanel
-            url={dynamic.url}
-            droppedUploads={dynamic.droppedUploads}
-            inUse={opts.imageUrl === dynamic.url}
-            onUse={() => setOpts((o) => ({ ...o, imageUrl: dynamic.url }))}
-          />
-        ) : null}
-
-        <div className="border-t border-hairline pt-5">
-          <div className="mb-5 grid gap-3 sm:grid-cols-2">
-            <LinkField
-              id="export-page-url"
-              label="Page URL"
-              value={opts.pageUrl}
-              placeholder={defaultPage}
-              onChange={setOpt("pageUrl")}
-            />
-            <LinkField
-              id="export-image-url"
-              label="Image URL"
-              value={opts.imageUrl}
-              placeholder={defaultImageUrl(opts.pageUrl || defaultPage, format, state.title)}
-              onChange={setOpt("imageUrl")}
-            />
-            <LinkField
-              id="export-site-name"
-              label="Site name"
-              value={opts.siteName}
-              placeholder="Optional"
-              onChange={setOpt("siteName")}
-            />
-            <LinkField
-              id="export-image-alt"
-              label="Image alt text"
-              value={opts.imageAlt}
-              placeholder="Defaults to the title"
-              onChange={setOpt("imageAlt")}
-            />
-          </div>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div className="w-[200px] space-y-1.5">
-              <label htmlFor="framework" className="text-[12px] font-medium text-graphite">
-                Meta tags for
-              </label>
-              <Select value={framework} onValueChange={(v) => setFramework(v as FrameworkId)}>
-                <SelectTrigger id="framework">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FRAMEWORKS.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {f.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {nextStep("Next: meta tags", () => {
+                setImageSource("file");
+                setTab("tags");
+              })}
             </div>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                await navigator.clipboard.writeText(snippet);
-                setCopied(true);
-                clearTimeout(copiedTimer.current);
-                copiedTimer.current = setTimeout(() => setCopied(false), 2000);
-              }}
-            >
-              {copied ? <Check className="text-pass" /> : <Copy />}
-              <span aria-live="polite">{copied ? "Copied" : "Copy meta tags"}</span>
-            </Button>
-          </div>
-          <p className="mt-3 text-[13px] text-graphite">{PLACEMENT[framework]}</p>
-          <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-wash p-4 font-mono text-[12px] leading-relaxed text-ink">
-            {snippet}
-          </pre>
+          ) : tab === "link" ? (
+            <div className="space-y-6">
+              <Field label="Image URL · PNG, 1200×630">
+                <div className="flex gap-2">
+                  <Input
+                    aria-label="Dynamic image URL"
+                    readOnly
+                    value={dynamic?.url ?? ""}
+                    spellCheck={false}
+                    className="min-w-0 flex-1 font-mono text-[12px]"
+                    onFocus={(e) => e.currentTarget.select()}
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title="Copy URL"
+                    aria-label="Copy dynamic image URL"
+                    onClick={() => dynamic && copyLink(dynamic.url)}
+                  >
+                    {linkCopied ? <Check className="text-pass" /> : <Copy />}
+                  </Button>
+                  <Button variant="outline" size="icon" asChild title="Open in a new tab">
+                    <a href={dynamic?.url} target="_blank" rel="noreferrer" aria-label="Open dynamic image">
+                      <ExternalLink />
+                    </a>
+                  </Button>
+                </div>
+              </Field>
+
+              {dynamic?.droppedUploads ? (
+                <p className="flex items-start gap-1.5 text-[13px] text-warn">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                  Uploaded images live only in this browser, so the link leaves them out. Use an
+                  image URL instead.
+                </p>
+              ) : null}
+
+              <div className="bg-wash px-4 py-3 text-[13px] leading-relaxed text-graphite">
+                <p className="font-medium text-ink">One design, an image for every page</p>
+                <p className="mt-1">
+                  Change <code className="text-ink">title</code>,{" "}
+                  <code className="text-ink">description</code> or{" "}
+                  <code className="text-ink">image</code> in the URL for each post. The rest of the
+                  design stays the same.
+                </p>
+              </div>
+
+              {nextStep("Use it in the meta tags", () => {
+                setImageSource("link");
+                setTab("tags");
+              })}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <Field label="Image">
+                  <Segmented
+                    label="Image source"
+                    value={imageSource}
+                    onChange={setImageSource}
+                    options={[
+                      { value: "file", label: "Uploaded file", title: "The file from the Download tab" },
+                      { value: "link", label: "Image link", title: "Rendered on request by OGee" },
+                    ]}
+                  />
+                </Field>
+                {imageSource === "file" ? (
+                  <LinkField
+                    id="export-image-url"
+                    label={`Where the file is served · ${tagFormat === "jpeg" ? "JPG" : tagFormat.toUpperCase()}, ${Math.round(PRESETS[state.preset].w * tagOpts.scale)}×${Math.round(PRESETS[state.preset].h * tagOpts.scale)}`}
+                    value={opts.imageUrl}
+                    placeholder={defaultImageUrl(opts.pageUrl || defaultPage, format, state.title)}
+                    onChange={setOpt("imageUrl")}
+                  />
+                ) : null}
+                <LinkField
+                  id="export-page-url"
+                  label="Page URL"
+                  value={opts.pageUrl}
+                  placeholder={defaultPage}
+                  onChange={setOpt("pageUrl")}
+                />
+                <details className="group">
+                  <summary className="flex w-fit cursor-pointer list-none items-center gap-1 text-[13px] font-medium text-graphite hover:text-ink [&::-webkit-details-marker]:hidden">
+                    <ChevronRight className="size-3.5 transition-transform duration-150 group-open:rotate-90" />
+                    Site name and alt text
+                  </summary>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <LinkField
+                      id="export-site-name"
+                      label="Site name"
+                      value={opts.siteName}
+                      placeholder="Optional"
+                      onChange={setOpt("siteName")}
+                    />
+                    <LinkField
+                      id="export-image-alt"
+                      label="Image alt text"
+                      value={opts.imageAlt}
+                      placeholder="Defaults to the title"
+                      onChange={setOpt("imageAlt")}
+                    />
+                  </div>
+                </details>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <Select value={framework} onValueChange={(v) => setFramework(v as FrameworkId)}>
+                    <SelectTrigger aria-label="Meta tags for" className="w-[200px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FRAMEWORKS.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" onClick={() => copySnippet(snippet)}>
+                    {snippetCopied ? <Check className="text-pass" /> : <Copy />}
+                    <span aria-live="polite">{snippetCopied ? "Copied" : "Copy"}</span>
+                  </Button>
+                </div>
+                <p className="text-[13px] text-graphite">{PLACEMENT[framework]}</p>
+                <pre className="max-h-64 overflow-auto rounded-md bg-wash p-4 font-mono text-[12px] leading-relaxed text-ink">
+                  {snippet}
+                </pre>
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
