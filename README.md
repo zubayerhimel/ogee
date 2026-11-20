@@ -20,21 +20,9 @@ via Nitro.
 - Localhost URLs are fetched directly from the browser, so your dev server must allow CORS (or be
   exposed with a tunnel such as `npx localtunnel --port 3000`).
 
-This project was built with [Lovable](https://lovable.dev).
-
-**Live app**: https://structured-steps-now.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/0ffff6b0-2ef7-42fc-9852-1de4991dc72f).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
 ## Development
 
-Prefer working locally? You need Node.js and [pnpm](https://pnpm.io).
+You need Node.js and [pnpm](https://pnpm.io).
 
 ```sh
 git clone <this-repository-url>
