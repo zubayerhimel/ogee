@@ -39,14 +39,16 @@ function Index() {
   const update = (patch: Partial<OGState>) => setState((s) => ({ ...s, ...patch }));
 
   const applyMeta = (meta: ScrapedMeta) => {
-    update({
-      title: meta.title || state.title,
-      description: meta.description || state.description,
-      badge: meta.siteName ? meta.siteName.toUpperCase().slice(0, 24) : state.badge,
-      domain: meta.domain || state.domain,
-      logoUrl: meta.logo ?? state.logoUrl,
-      imageUrl: meta.image ?? state.imageUrl,
-    });
+    // Functional update so edits made while the import was in flight aren't overwritten.
+    setState((s) => ({
+      ...s,
+      title: meta.title || s.title,
+      description: meta.description || s.description,
+      badge: meta.siteName ? meta.siteName.toUpperCase().slice(0, 24) : s.badge,
+      domain: meta.domain || s.domain,
+      logoUrl: meta.logo ?? s.logoUrl,
+      imageUrl: meta.image ?? s.imageUrl,
+    }));
     toast.success(`Imported from ${meta.domain}`);
   };
 
