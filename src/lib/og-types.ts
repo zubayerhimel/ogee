@@ -124,6 +124,18 @@ export function nearestWeight(font: string, wanted: number): number {
   );
 }
 
+/** The weight CSS font matching picks from `available` when `wanted` isn't loaded. */
+export function matchWeight(available: number[], wanted: number): number {
+  if (available.includes(wanted)) return wanted;
+  const asc = [...available].sort((a, b) => a - b);
+  const below = asc.filter((w) => w < wanted).reverse();
+  const above = asc.filter((w) => w > wanted);
+  if (wanted >= 400 && wanted <= 500) {
+    return above.find((w) => w <= 500) ?? below[0] ?? above[0] ?? wanted;
+  }
+  return (wanted < 400 ? (below[0] ?? above[0]) : (above[0] ?? below[0])) ?? wanted;
+}
+
 export const defaultState: OGState = {
   title: "Design social previews that actually get clicked",
   description:

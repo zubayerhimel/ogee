@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Check, CircleCheck, Copy, Download, FileArchive, Loader2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDown,
+  Check,
+  CircleCheck,
+  Copy,
+  Download,
+  ExternalLink,
+  FileArchive,
+  Loader2,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +45,7 @@ import {
   type SnippetOptions,
 } from "@/lib/meta-snippets";
 import { Segmented } from "./Segmented";
+import { isOgEndpoint, ogImageUrl } from "@/lib/og-url";
 
 type Format = "png" | "jpeg" | "webp";
 
@@ -169,6 +180,76 @@ function LinkField({
   );
 }
 
+function DynamicUrlPanel({
+  url,
+  droppedUploads,
+  inUse,
+  onUse,
+}: {
+  url: string;
+  droppedUploads: boolean;
+  inUse: boolean;
+  onUse: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  return (
+    <div className="border-t border-hairline pt-5">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-[14px] font-medium text-ink">Or render it on request</h3>
+        <span className="text-[12px] text-graphite">PNG · 1×</span>
+      </div>
+      <p className="mt-1 text-[13px] text-graphite">
+        This URL draws the design whenever it's loaded. Swap <code className="text-ink">title</code>{" "}
+        and <code className="text-ink">description</code> per page, and every post gets its own image
+        without exporting anything.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <Input
+          aria-label="Dynamic image URL"
+          readOnly
+          value={url}
+          spellCheck={false}
+          className="min-w-0 flex-1 font-mono text-[12px]"
+          onFocus={(e) => e.currentTarget.select()}
+        />
+        <Button
+          variant="outline"
+          size="icon"
+          title="Copy URL"
+          aria-label="Copy dynamic image URL"
+          onClick={async () => {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            clearTimeout(timer.current);
+            timer.current = setTimeout(() => setCopied(false), 2000);
+          }}
+        >
+          {copied ? <Check className="text-pass" /> : <Copy />}
+        </Button>
+        <Button variant="outline" size="icon" asChild title="Open in a new tab">
+          <a href={url} target="_blank" rel="noreferrer" aria-label="Open dynamic image">
+            <ExternalLink />
+          </a>
+        </Button>
+      </div>
+      {droppedUploads ? (
+        <p className="mt-2 flex items-start gap-1.5 text-[13px] text-warn">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+          Uploaded images live only in this browser, so the URL leaves them out. Use an image link
+          instead.
+        </p>
+      ) : null}
+      <Button variant="ghost" size="sm" className="mt-2 -ml-2" disabled={inUse} onClick={onUse}>
+        {inUse ? <CircleCheck className="text-pass" /> : <ArrowDown />}
+        {inUse ? "Used in the meta tags below" : "Use in the meta tags below"}
+      </Button>
+    </div>
+  );
+}
+
 export function ExportDialog({ state }: { state: OGState }) {
   const [open, setOpen] = useState(false);
   const [format, setFormat] = useState<Format>("png");
@@ -189,8 +270,13 @@ export function ExportDialog({ state }: { state: OGState }) {
   const pixelH = Math.round(PRESETS[state.preset].h * scale);
   const name = fileName(format, state.title);
   const bytes = useEncodedSize(open, state, format, q, scale);
-  const snippet = buildSnippet(framework, state, format, { ...opts, scale });
-  const resolved = resolveTags(state, format, { ...opts, scale });
+  const dynamic = open ? ogImageUrl(window.location.origin, state) : null;
+  // The endpoint always serves a 1× PNG, whatever the download settings are.
+  const tagsFromEndpoint = isOgEndpoint(opts.imageUrl);
+  const tagFormat = tagsFromEndpoint ? "png" : format;
+  const tagOpts = { ...opts, scale: tagsFromEndpoint ? 1 : scale };
+  const snippet = buildSnippet(framework, state, tagFormat, tagOpts);
+  const resolved = resolveTags(state, tagFormat, tagOpts);
   const defaultPage = defaultPageUrl(state);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -314,6 +400,15 @@ export function ExportDialog({ state }: { state: OGState }) {
             </Button>
           </div>
         </div>
+
+        {dynamic ? (
+          <DynamicUrlPanel
+            url={dynamic.url}
+            droppedUploads={dynamic.droppedUploads}
+            inUse={opts.imageUrl === dynamic.url}
+            onUse={() => setOpts((o) => ({ ...o, imageUrl: dynamic.url }))}
+          />
+        ) : null}
 
         <div className="border-t border-hairline pt-5">
           <div className="mb-5 grid gap-3 sm:grid-cols-2">

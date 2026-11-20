@@ -1,4 +1,5 @@
 import { isLocalUrl } from "./html-meta";
+import { wrapLines } from "./text-wrap";
 import {
   FONTS,
   fontMaxWeight,
@@ -75,34 +76,10 @@ function wrap(
   maxWidth: number,
   maxLines: number,
 ): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let line = "";
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word;
-    if (ctx.measureText(next).width > maxWidth && line) {
-      lines.push(line);
-      line = word;
-      if (lines.length === maxLines) break;
-    } else {
-      line = next;
-    }
-  }
-  if (lines.length < maxLines && line) lines.push(line);
-  if (lines.length === maxLines) {
-    let last = lines[maxLines - 1] ?? "";
-    const joined = lines.join(" ");
-    if (joined.length < text.length) {
-      while (last.length > 1 && ctx.measureText(`${last}…`).width > maxWidth) {
-        last = last.slice(0, -1);
-      }
-      lines[maxLines - 1] = `${last.trimEnd()}…`;
-    }
-  }
-  return lines;
+  return wrapLines(text, maxWidth, maxLines, (s) => ctx.measureText(s).width);
 }
 
-const GRAIN_SEED = 0x0ce1;
+export const GRAIN_SEED = 0x0ce1;
 
 /** Opacity of the description text; the contrast check blends with the same value. */
 export const DESCRIPTION_ALPHA = 0.82;
