@@ -21,64 +21,152 @@ export const FRAMEWORKS: { id: FrameworkId; label: string; hint: string }[] = [
   { id: "remix", label: "Remix", hint: "meta export" },
 ];
 
-const esc = (s: string) => s.replace(/"/g, "&quot;");
+export type ImageFormat = "png" | "jpeg" | "webp";
+
+/** Where the page and image will live once published. Blank fields fall back to defaults. */
+export type SnippetOptions = {
+  pageUrl?: string;
+  imageUrl?: string;
+  siteName?: string;
+  imageAlt?: string;
+};
+
+export const imageFileName = (format: ImageFormat) =>
+  `og-image.${format === "jpeg" ? "jpg" : format}`;
+
+function toAbsolute(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  try {
+    return new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(t) ? t : `https://${t}`).toString();
+  } catch {
+    return null;
+  }
+}
+
+/** Default page URL guessed from the domain shown on the image. */
+export function defaultPageUrl(state: OGState): string {
+  return toAbsolute(state.domain) ?? "https://your-site.com/";
+}
+
+export function defaultImageUrl(pageUrl: string, format: ImageFormat): string {
+  const base = toAbsolute(pageUrl) ?? "https://your-site.com/";
+  return new URL(`/${imageFileName(format)}`, base).toString();
+}
+
+type Tag = { attr: "name" | "property"; key: string; content: string };
+
+export type ResolvedTags = {
+  title: string;
+  description: string;
+  pageUrl: string;
+  imageUrl: string;
+  imageType: string;
+  siteName: string;
+  imageAlt: string;
+  w: number;
+  h: number;
+  tags: Tag[];
+};
+
+export function resolveTags(
+  state: OGState,
+  format: ImageFormat,
+  opts: SnippetOptions = {},
+): ResolvedTags {
+  const { w, h } = PRESETS[state.preset];
+  const pageUrl = toAbsolute(opts.pageUrl ?? "") ?? defaultPageUrl(state);
+  const imageUrl = toAbsolute(opts.imageUrl ?? "") ?? defaultImageUrl(pageUrl, format);
+  const siteName = opts.siteName?.trim() ?? "";
+  const imageAlt = opts.imageAlt?.trim() || state.title;
+  const imageType = `image/${format}`;
+  const { title, description } = state;
+
+  const tags: Tag[] = [
+    { attr: "name", key: "description", content: description },
+    { attr: "property", key: "og:type", content: "website" },
+    { attr: "property", key: "og:url", content: pageUrl },
+    ...(siteName ? [{ attr: "property" as const, key: "og:site_name", content: siteName }] : []),
+    { attr: "property", key: "og:title", content: title },
+    { attr: "property", key: "og:description", content: description },
+    { attr: "property", key: "og:image", content: imageUrl },
+    { attr: "property", key: "og:image:type", content: imageType },
+    { attr: "property", key: "og:image:width", content: String(w) },
+    { attr: "property", key: "og:image:height", content: String(h) },
+    { attr: "property", key: "og:image:alt", content: imageAlt },
+    { attr: "name", key: "twitter:card", content: "summary_large_image" },
+    { attr: "name", key: "twitter:title", content: title },
+    { attr: "name", key: "twitter:description", content: description },
+    { attr: "name", key: "twitter:image", content: imageUrl },
+    { attr: "name", key: "twitter:image:alt", content: imageAlt },
+  ];
+
+  return { title, description, pageUrl, imageUrl, imageType, siteName, imageAlt, w, h, tags };
+}
+
+const esc = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const js = (s: string) => JSON.stringify(s);
+
+const htmlTags = (t: ResolvedTags, indent = "") =>
+  [
+    `${indent}<title>${esc(t.title)}</title>`,
+    `${indent}<link rel="canonical" href="${esc(t.pageUrl)}" />`,
+    ...t.tags.map((m) => `${indent}<meta ${m.attr}="${m.key}" content="${esc(m.content)}" />`),
+  ].join("\n");
+
+const objectTags = (t: ResolvedTags, indent: string) =>
+  [
+    `${indent}{ title: ${js(t.title)} },`,
+    ...t.tags.map((m) => `${indent}{ ${m.attr}: ${js(m.key)}, content: ${js(m.content)} },`),
+  ].join("\n");
 
 export function buildSnippet(
   framework: FrameworkId,
   state: OGState,
-  format: "png" | "jpeg" | "webp",
+  format: ImageFormat,
+  opts: SnippetOptions = {},
 ): string {
-  const { w, h } = PRESETS[state.preset];
-  const ext = format === "jpeg" ? "jpg" : format;
-  const site = state.domain?.trim() || "your-site.com";
-  const origin = site.startsWith("http") ? site.replace(/\/$/, "") : `https://${site}`;
-  const image = `${origin}/og-image.${ext}`;
-  const title = state.title;
-  const desc = state.description;
-  const type = `image/${format === "jpeg" ? "jpeg" : format}`;
+  const t = resolveTags(state, format, opts);
 
   switch (framework) {
     case "html":
     case "vite":
     case "astro":
-      return `<title>${esc(title)}</title>
-<meta name="description" content="${esc(desc)}" />
+      return htmlTags(t);
 
-<meta property="og:type" content="website" />
-<meta property="og:url" content="${origin}/" />
-<meta property="og:title" content="${esc(title)}" />
-<meta property="og:description" content="${esc(desc)}" />
-<meta property="og:image" content="${image}" />
-<meta property="og:image:type" content="${type}" />
-<meta property="og:image:width" content="${w}" />
-<meta property="og:image:height" content="${h}" />
-
-<meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="${esc(title)}" />
-<meta name="twitter:description" content="${esc(desc)}" />
-<meta name="twitter:image" content="${image}" />`;
+    case "sveltekit":
+      return `<svelte:head>\n${htmlTags(t, "  ")}\n</svelte:head>`;
 
     case "nextjs":
       return `// app/layout.tsx (or app/page.tsx)
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(${js(origin)}),
-  title: ${js(title)},
-  description: ${js(desc)},
+  metadataBase: new URL(${js(new URL(t.pageUrl).origin)}),
+  title: ${js(t.title)},
+  description: ${js(t.description)},
+  alternates: { canonical: ${js(t.pageUrl)} },
   openGraph: {
     type: "website",
-    url: "/",
-    title: ${js(title)},
-    description: ${js(desc)},
-    images: [{ url: ${js(`/og-image.${ext}`)}, width: ${w}, height: ${h} }],
+    url: ${js(t.pageUrl)},${t.siteName ? `\n    siteName: ${js(t.siteName)},` : ""}
+    title: ${js(t.title)},
+    description: ${js(t.description)},
+    images: [
+      {
+        url: ${js(t.imageUrl)},
+        width: ${t.w},
+        height: ${t.h},
+        alt: ${js(t.imageAlt)},
+        type: ${js(t.imageType)},
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: ${js(title)},
-    description: ${js(desc)},
-    images: [${js(`/og-image.${ext}`)}],
+    title: ${js(t.title)},
+    description: ${js(t.description)},
+    images: [{ url: ${js(t.imageUrl)}, alt: ${js(t.imageAlt)} }],
   },
 };`;
 
@@ -88,71 +176,43 @@ export const Route = createFileRoute("/")({
   component: Index,
   head: () => ({
     meta: [
-      { title: ${js(title)} },
-      { name: "description", content: ${js(desc)} },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: ${js(`${origin}/`)} },
-      { property: "og:title", content: ${js(title)} },
-      { property: "og:description", content: ${js(desc)} },
-      { property: "og:image", content: ${js(image)} },
-      { property: "og:image:width", content: "${w}" },
-      { property: "og:image:height", content: "${h}" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:image", content: ${js(image)} },
+${objectTags(t, "      ")}
     ],
-    links: [{ rel: "canonical", href: ${js(`${origin}/`)} }],
+    links: [{ rel: "canonical", href: ${js(t.pageUrl)} }],
   }),
 });`;
-
-    case "nuxt":
-      return `<script setup lang="ts">
-useSeoMeta({
-  title: ${js(title)},
-  description: ${js(desc)},
-  ogType: "website",
-  ogUrl: ${js(`${origin}/`)},
-  ogTitle: ${js(title)},
-  ogDescription: ${js(desc)},
-  ogImage: ${js(image)},
-  ogImageWidth: ${w},
-  ogImageHeight: ${h},
-  twitterCard: "summary_large_image",
-  twitterImage: ${js(image)},
-});
-</script>`;
-
-    case "sveltekit":
-      return `<svelte:head>
-  <title>${esc(title)}</title>
-  <meta name="description" content="${esc(desc)}" />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="${origin}/" />
-  <meta property="og:title" content="${esc(title)}" />
-  <meta property="og:description" content="${esc(desc)}" />
-  <meta property="og:image" content="${image}" />
-  <meta property="og:image:width" content="${w}" />
-  <meta property="og:image:height" content="${h}" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:image" content="${image}" />
-</svelte:head>`;
 
     case "remix":
       return `// app/routes/_index.tsx
 import type { MetaFunction } from "@remix-run/node";
 
 export const meta: MetaFunction = () => [
-  { title: ${js(title)} },
-  { name: "description", content: ${js(desc)} },
-  { property: "og:type", content: "website" },
-  { property: "og:url", content: ${js(`${origin}/`)} },
-  { property: "og:title", content: ${js(title)} },
-  { property: "og:description", content: ${js(desc)} },
-  { property: "og:image", content: ${js(image)} },
-  { property: "og:image:width", content: "${w}" },
-  { property: "og:image:height", content: "${h}" },
-  { name: "twitter:card", content: "summary_large_image" },
-  { name: "twitter:image", content: ${js(image)} },
+${objectTags(t, "  ")}
+  { tagName: "link", rel: "canonical", href: ${js(t.pageUrl)} },
 ];`;
+
+    case "nuxt":
+      return `<script setup lang="ts">
+useHead({ link: [{ rel: "canonical", href: ${js(t.pageUrl)} }] });
+useSeoMeta({
+  title: ${js(t.title)},
+  description: ${js(t.description)},
+  ogType: "website",
+  ogUrl: ${js(t.pageUrl)},${t.siteName ? `\n  ogSiteName: ${js(t.siteName)},` : ""}
+  ogTitle: ${js(t.title)},
+  ogDescription: ${js(t.description)},
+  ogImage: ${js(t.imageUrl)},
+  ogImageType: ${js(t.imageType)},
+  ogImageWidth: ${t.w},
+  ogImageHeight: ${t.h},
+  ogImageAlt: ${js(t.imageAlt)},
+  twitterCard: "summary_large_image",
+  twitterTitle: ${js(t.title)},
+  twitterDescription: ${js(t.description)},
+  twitterImage: ${js(t.imageUrl)},
+  twitterImageAlt: ${js(t.imageAlt)},
+});
+</script>`;
   }
 }
 

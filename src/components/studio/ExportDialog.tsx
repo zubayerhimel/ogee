@@ -17,9 +17,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 import { download, renderOG } from "@/lib/render-og";
 import { PRESETS, type OGState } from "@/lib/og-types";
-import { FRAMEWORKS, PLACEMENT, buildSnippet, type FrameworkId } from "@/lib/meta-snippets";
+import {
+  FRAMEWORKS,
+  PLACEMENT,
+  buildSnippet,
+  defaultImageUrl,
+  defaultPageUrl,
+  imageFileName,
+  resolveTags,
+  type FrameworkId,
+  type SnippetOptions,
+} from "@/lib/meta-snippets";
 import { Segmented } from "./Segmented";
 
 type Format = "png" | "jpeg" | "webp";
@@ -30,14 +41,52 @@ const FORMATS: { value: Format; label: string; title: string }[] = [
   { value: "webp", label: "WebP", title: "Small and sharp; not every platform reads it" },
 ];
 
-const fileName = (format: Format) => `og-image.${format === "jpeg" ? "jpg" : format}`;
+const fileName = imageFileName;
+
+function LinkField({
+  id,
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="text-[12px] font-medium text-graphite">
+        {label}
+      </label>
+      <Input
+        id={id}
+        value={value}
+        placeholder={placeholder}
+        spellCheck={false}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
 
 export function ExportDialog({ state }: { state: OGState }) {
   const [format, setFormat] = useState<Format>("png");
   const [framework, setFramework] = useState<FrameworkId>("html");
   const [exporting, setExporting] = useState(false);
+  const [opts, setOpts] = useState<Required<SnippetOptions>>({
+    pageUrl: "",
+    imageUrl: "",
+    siteName: "",
+    imageAlt: "",
+  });
+  const setOpt = (key: keyof SnippetOptions) => (v: string) => setOpts((o) => ({ ...o, [key]: v }));
   const { w, h } = PRESETS[state.preset];
-  const snippet = buildSnippet(framework, state, format);
+  const snippet = buildSnippet(framework, state, format, opts);
+  const resolved = resolveTags(state, format, opts);
+  const defaultPage = defaultPageUrl(state);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
@@ -50,12 +99,13 @@ export function ExportDialog({ state }: { state: OGState }) {
           Export
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-[640px]">
+      <DialogContent className="max-h-[92dvh] max-w-[640px] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Export</DialogTitle>
           <DialogDescription className="text-[14px]">
-            Download the {w} × {h} image, upload it to your site as{" "}
-            <span className="text-ink">/{fileName(format)}</span>, then add the tags below.
+            Download the {w} × {h} image, upload it so it's served at{" "}
+            <span className="break-all text-ink">{resolved.imageUrl}</span>, then add the tags
+            below.
           </DialogDescription>
         </DialogHeader>
 
@@ -89,6 +139,36 @@ export function ExportDialog({ state }: { state: OGState }) {
         </div>
 
         <div className="border-t border-hairline pt-5">
+          <div className="mb-5 grid gap-3 sm:grid-cols-2">
+            <LinkField
+              id="export-page-url"
+              label="Page URL"
+              value={opts.pageUrl}
+              placeholder={defaultPage}
+              onChange={setOpt("pageUrl")}
+            />
+            <LinkField
+              id="export-image-url"
+              label="Image URL"
+              value={opts.imageUrl}
+              placeholder={defaultImageUrl(opts.pageUrl || defaultPage, format)}
+              onChange={setOpt("imageUrl")}
+            />
+            <LinkField
+              id="export-site-name"
+              label="Site name"
+              value={opts.siteName}
+              placeholder="Optional"
+              onChange={setOpt("siteName")}
+            />
+            <LinkField
+              id="export-image-alt"
+              label="Image alt text"
+              value={opts.imageAlt}
+              placeholder="Defaults to the title"
+              onChange={setOpt("imageAlt")}
+            />
+          </div>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="w-[200px] space-y-1.5">
               <label htmlFor="framework" className="text-[12px] font-medium text-graphite">
