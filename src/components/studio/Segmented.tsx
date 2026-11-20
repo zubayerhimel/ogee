@@ -80,7 +80,7 @@ export function Segmented<T extends string>({
       ref={listRef}
       role="radiogroup"
       aria-label={label}
-      className={cn("relative inline-flex bg-[oklch(0_0_0/0.06)] p-0.5", className)}
+      className={cn("relative inline-flex bg-ink/[0.06] p-0.5", className)}
     >
       {options.map((o, i) => {
         const checked = o.value === value;
@@ -100,7 +100,7 @@ export function Segmented<T extends string>({
             className={cn(
               SEGMENT,
               "text-graphite transition-colors hover:text-ink",
-              checked && !clip && "bg-paper text-ink",
+              checked && !clip && "bg-raised text-ink",
             )}
           >
             {o.label}
@@ -111,7 +111,7 @@ export function Segmented<T extends string>({
         <div
           aria-hidden="true"
           className={cn(
-            "pointer-events-none absolute inset-0 flex bg-paper p-0.5 text-ink",
+            "pointer-events-none absolute inset-0 flex bg-raised p-0.5 text-ink",
             animate &&
               "transition-[clip-path] duration-250 ease-in-out motion-reduce:transition-none",
           )}

@@ -11,6 +11,8 @@
  * classes (e.g. --color-primary -> bg-primary, text-primary).
  *
  * The :root and .dark blocks define the actual color values using oklch.
+ * Components use the proofing-desk tokens (stage, paper, ink, ...); the shadcn
+ * semantic tokens derive from them, so .dark only overrides the raw tokens.
  * All colors MUST use oklch format.
  *
  * To add a new semantic color:
@@ -86,6 +88,8 @@
   --color-wash: var(--wash);
   --color-ink: var(--ink);
   --color-graphite: var(--graphite);
+  --color-raised: var(--raised);
+  --color-scrim: var(--scrim);
   --color-hairline: var(--hairline);
   --color-hairline-strong: var(--hairline-strong);
   --color-spec: var(--spec);
@@ -101,6 +105,7 @@
   --stage: oklch(0.89 0 0);
   --paper: oklch(1 0 0);
   --wash: oklch(0.964 0.001 106);
+  --raised: var(--paper);
   --ink: oklch(0.235 0.006 271);
   --graphite: oklch(0.515 0.008 277);
   --hairline: oklch(0.91 0.003 286);
@@ -109,6 +114,7 @@
   --pass: oklch(0.515 0.11 157);
   --warn: oklch(0.567 0.127 65);
   --fail: oklch(0.538 0.189 26);
+  --scrim: oklch(0.235 0.006 271 / 0.45);
 
   --background: var(--paper);
   --foreground: var(--ink);
@@ -146,39 +152,23 @@
   --sidebar-ring: var(--spec);
 }
 
+/* Dark proofing desk: neutral (zero-chroma) greys keep the artwork's colour honest;
+   the stage recedes and the panels sit slightly above it. */
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  --stage: oklch(0.19 0 0);
+  --paper: oklch(0.225 0 0);
+  --wash: oklch(0.265 0 0);
+  --raised: oklch(0.34 0 0);
+  --ink: oklch(0.945 0.002 271);
+  --graphite: oklch(0.7 0.006 277);
+  --hairline: oklch(0.29 0 0);
+  --hairline-strong: oklch(0.38 0 0);
+  --spec: oklch(0.7 0.19 0.8);
+  --pass: oklch(0.74 0.13 157);
+  --warn: oklch(0.79 0.13 75);
+  --fail: oklch(0.7 0.17 26);
+  --scrim: oklch(0 0 0 / 0.6);
+  --shadow-proof: 0 1px 2px oklch(0 0 0 / 0.4), 0 18px 40px -18px oklch(0 0 0 / 0.7);
 }
 
 @layer base {
@@ -188,6 +178,10 @@
 
   html {
     color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 
   body {

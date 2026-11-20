@@ -11,6 +11,7 @@ import { Inspector } from "@/components/studio/Inspector";
 import { PreviewTester } from "@/components/studio/PreviewTester";
 import { Stage } from "@/components/studio/Stage";
 import { TemplateStrip } from "@/components/studio/TemplateStrip";
+import { ThemeSwitcher } from "@/components/studio/ThemeSwitcher";
 import { Wordmark } from "@/components/studio/Wordmark";
 import { defaultState, type OGState } from "@/lib/og-types";
 import { isLocalUrl, parseMeta, withScheme, type ScrapedMeta } from "@/lib/html-meta";
@@ -128,7 +129,8 @@ function Index() {
               {loading ? <Loader2 className="animate-spin" aria-label="Importing" /> : "Import"}
             </Button>
           </form>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-3">
+            <ThemeSwitcher />
             <ExportDialog canvasRef={canvasRef} state={state} />
           </div>
         </div>
@@ -136,11 +138,7 @@ function Index() {
 
       <main className="lg:grid lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex flex-col gap-10 lg:min-h-[calc(100dvh-4rem)] bg-stage px-5 pb-10 pt-6 lg:px-12">
-          <Stage
-            state={state}
-            canvasRef={canvasRef}
-            onPreset={(preset) => update({ preset })}
-          />
+          <Stage state={state} canvasRef={canvasRef} onPreset={(preset) => update({ preset })} />
           <TemplateStrip state={state} update={update} />
         </div>
         <aside
