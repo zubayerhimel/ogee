@@ -7,12 +7,15 @@ import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { FONTS, type OGState } from "@/lib/og-types";
+import { FONT_CATEGORIES, FONTS, type OGState } from "@/lib/og-types";
+import { ensureFontCss } from "@/lib/render-og";
 import { Segmented } from "./Segmented";
 
 type Update = (patch: Partial<OGState>) => void;
@@ -243,15 +246,34 @@ export function Inspector({ state, update }: { state: OGState; update: Update })
       <Section title="Type">
         <Field label="Typeface">
           {(id) => (
-            <Select value={state.font} onValueChange={(v) => update({ font: v })}>
+            <Select
+              value={state.font}
+              onValueChange={(v) => update({ font: v })}
+              onOpenChange={(open) => {
+                // Load every family so each name previews in its own typeface.
+                if (open) for (const f of FONTS) void ensureFontCss(f.value);
+              }}
+            >
               <SelectTrigger id={id}>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                {FONTS.map((f) => (
-                  <SelectItem key={f.value} value={f.value} style={{ fontFamily: f.value }}>
-                    {f.label}
-                  </SelectItem>
+              <SelectContent className="max-h-[min(420px,var(--radix-select-content-available-height))]">
+                {FONT_CATEGORIES.map((category) => (
+                  <SelectGroup key={category}>
+                    <SelectLabel className="pt-3 text-[12px] font-medium text-graphite first:pt-1.5">
+                      {category}
+                    </SelectLabel>
+                    {FONTS.filter((f) => f.category === category).map((f) => (
+                      <SelectItem
+                        key={f.value}
+                        value={f.value}
+                        className="text-[15px]"
+                        style={{ fontFamily: `${f.value}, sans-serif` }}
+                      >
+                        {f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>
@@ -292,11 +314,7 @@ export function Inspector({ state, update }: { state: OGState; update: Update })
             value={state.textColor}
             onChange={(v) => update({ textColor: v })}
           />
-          <ColorField
-            label="Accent"
-            value={state.accent}
-            onChange={(v) => update({ accent: v })}
-          />
+          <ColorField label="Accent" value={state.accent} onChange={(v) => update({ accent: v })} />
         </div>
         <SliderField
           label="Gradient angle"

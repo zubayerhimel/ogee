@@ -36,14 +36,68 @@ export type OGState = {
   preset: Preset;
 };
 
-// maxWeight mirrors the weights loaded from Google Fonts in __root.tsx; anything
-// heavier would be faux-bolded by the browser.
-export const FONTS = [
-  { label: "Space Grotesk", value: "'Space Grotesk'", maxWeight: 700 },
-  { label: "DM Sans", value: "'DM Sans'", maxWeight: 700 },
-  { label: "Instrument Serif", value: "'Instrument Serif'", maxWeight: 400 },
-  { label: "JetBrains Mono", value: "'JetBrains Mono'", maxWeight: 700 },
+export type FontCategory = "Sans" | "Serif" | "Display" | "Mono";
+export const FONT_CATEGORIES: FontCategory[] = ["Sans", "Serif", "Display", "Mono"];
+
+export type FontDef = {
+  label: string;
+  /** CSS font-family value stored in OGState.font. */
+  value: string;
+  family: string;
+  category: FontCategory;
+  /** Exact Google Fonts weights; Google rejects weights a family doesn't have. */
+  weights: number[];
+  /** Heaviest loaded weight; anything heavier would be faux-bolded by the browser. */
+  maxWeight: number;
+};
+
+const font = (family: string, category: FontCategory, weights = [400, 500, 600, 700]): FontDef => ({
+  label: family,
+  value: `'${family}'`,
+  family,
+  category,
+  weights,
+  maxWeight: Math.max(...weights),
+});
+
+export const FONTS: FontDef[] = [
+  font("Space Grotesk", "Sans"),
+  font("DM Sans", "Sans"),
+  font("Inter", "Sans"),
+  font("Geist", "Sans"),
+  font("Manrope", "Sans"),
+  font("Plus Jakarta Sans", "Sans"),
+  font("Outfit", "Sans"),
+  font("Sora", "Sans"),
+  font("Archivo", "Sans"),
+  font("Schibsted Grotesk", "Sans"),
+  font("Bricolage Grotesque", "Sans"),
+  font("Instrument Serif", "Serif", [400]),
+  font("Fraunces", "Serif"),
+  font("Playfair Display", "Serif"),
+  font("DM Serif Display", "Serif", [400]),
+  font("Newsreader", "Serif"),
+  font("Lora", "Serif"),
+  font("EB Garamond", "Serif"),
+  font("Bebas Neue", "Display", [400]),
+  font("Anton", "Display", [400]),
+  font("Archivo Black", "Display", [400]),
+  font("Syne", "Display"),
+  font("Unbounded", "Display"),
+  font("JetBrains Mono", "Mono"),
+  font("IBM Plex Mono", "Mono"),
+  font("Space Mono", "Mono", [400, 700]),
+  font("Geist Mono", "Mono"),
 ];
+
+export function fontStylesheetUrl(f: FontDef): string {
+  const family = f.family.replace(/ /g, "+");
+  const spec =
+    f.weights.length === 1 && f.weights[0] === 400
+      ? family
+      : `${family}:wght@${f.weights.join(";")}`;
+  return `https://fonts.googleapis.com/css2?family=${spec}&display=swap`;
+}
 
 export function fontMaxWeight(font: string): number {
   return FONTS.find((f) => f.value === font)?.maxWeight ?? 700;

@@ -1,5 +1,5 @@
 import { isLocalUrl } from "./html-meta";
-import { fontMaxWeight, PRESETS, type OGState } from "./og-types";
+import { FONTS, fontMaxWeight, fontStylesheetUrl, PRESETS, type OGState } from "./og-types";
 
 // Failed loads are cached too, so slider drags don't re-request broken URLs.
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
@@ -25,10 +25,40 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   return pending;
 }
 
-async function loadFonts(font: string, weights: number[]): Promise<void> {
+const fontCss = new Map<string, Promise<void>>();
+
+/** Injects a font's Google Fonts stylesheet once; font files download only when used. */
+export function ensureFontCss(font: string): Promise<void> {
+  const def = FONTS.find((f) => f.value === font);
+  if (typeof document === "undefined" || !def) return Promise.resolve();
+  let pending = fontCss.get(font);
+  if (!pending) {
+    pending = new Promise((resolve) => {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = fontStylesheetUrl(def);
+      link.onload = () => resolve();
+      link.onerror = () => {
+        // Allow a retry later; the canvas falls back to sans-serif meanwhile.
+        fontCss.delete(font);
+        link.remove();
+        resolve();
+      };
+      document.head.appendChild(link);
+    });
+    fontCss.set(font, pending);
+  }
+  return pending;
+}
+
+async function loadFonts(font: string, weights: number[], text: string): Promise<void> {
   if (typeof document === "undefined" || !document.fonts) return;
+  await ensureFontCss(font);
+  // Passing the real text pulls in every unicode-range subset it needs (Cyrillic, Greek, ...).
   await Promise.all(
-    [...new Set(weights)].map((w) => document.fonts.load(`${w} 32px ${font}`).catch(() => [])),
+    [...new Set(weights)].map((w) =>
+      document.fonts.load(`${w} 32px ${font}`, text).catch(() => []),
+    ),
   );
 }
 
@@ -112,7 +142,11 @@ export async function renderOG(
       ? loadImage(state.imageUrl).catch(() => null)
       : null,
     state.logoUrl ? loadImage(state.logoUrl).catch(() => null) : null,
-    loadFonts(state.font, [400, 500, 600, 700].map(weight)),
+    loadFonts(
+      state.font,
+      [400, 500, 600, 700].map(weight),
+      `${state.badge.toUpperCase()} ${state.title} ${state.description} ${state.domain}`,
+    ),
   ]);
   if (isStale()) return;
   draw(canvas, state, image, logo, weight);
@@ -251,9 +285,7 @@ function draw(
   const domainFont = `${weight(500)} ${domainSize}px ${state.font}, sans-serif`;
   ctx.font = domainFont;
   if (logo) {
-    const lx = centered
-      ? w / 2 - (logoSize + 16 + ctx.measureText(state.domain).width) / 2
-      : pad;
+    const lx = centered ? w / 2 - (logoSize + 16 + ctx.measureText(state.domain).width) / 2 : pad;
     ctx.save();
     roundRect(ctx, lx, footerY - logoSize + 4, logoSize, logoSize, 12);
     ctx.clip();
