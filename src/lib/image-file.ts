@@ -1,4 +1,4 @@
-/** Longest edge kept for uploads; plenty for a 1200px card at 2× while staying under storage quotas. */
+/** Longest edge kept for uploads; plenty for a 1200px card at 2× without bloating the saved design. */
 const MAX_EDGE = 2400;
 
 function readAsDataUrl(file: Blob): Promise<string> {
@@ -28,8 +28,8 @@ export function firstImageFile(data: DataTransfer | null): File | null {
 }
 
 /**
- * Reads an image into a data URL, downscaling big photos so the design still fits in
- * localStorage. SVGs and GIFs are kept as-is (re-encoding would rasterise or freeze them).
+ * Reads an image into a data URL, downscaling big photos so saved designs (and undo
+ * history) stay small. SVGs and GIFs are kept as-is (re-encoding would rasterise or freeze them).
  */
 export async function readImageFile(file: File): Promise<string> {
   const original = await readAsDataUrl(file);

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { loadDesign, saveDesign } from "./design-store";
 import { defaultState, PRESETS, type OGState } from "./og-types";
 
-const STORAGE_KEY = "ogee:design";
 const SHARE_PARAM = "d";
 const HISTORY_LIMIT = 100;
 /** Edits to the same fields closer together than this collapse into one undo step. */
@@ -83,10 +83,10 @@ function readHash(): OGState | null {
   return token ? decodeShare(token) : null;
 }
 
-function readStorage(): OGState | null {
+async function readStorage(): Promise<OGState | null> {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? sanitizeState(JSON.parse(raw)) : null;
+    const saved = await loadDesign();
+    return saved ? sanitizeState(saved) : null;
   } catch {
     return null;
   }
@@ -95,7 +95,7 @@ function readStorage(): OGState | null {
 type History = { past: OGState[]; present: OGState; future: OGState[] };
 
 /**
- * Design state with undo/redo, saved to localStorage and loadable from a `#d=` share link.
+ * Design state with undo/redo, saved to IndexedDB and loadable from a `#d=` share link.
  * A link wins over the saved design, and is then removed from the address bar so later
  * edits don't sit under a stale URL.
  */
@@ -106,6 +106,8 @@ export function useDesign() {
     future: [],
   });
   const last = useRef<{ key: string; at: number } | null>(null);
+  /** Whether the user changed anything since the saved design started loading. */
+  const edited = useRef(false);
   // State, not a ref: it must flip in the same render as the restored design, or a save
   // scheduled with the defaults could land first and overwrite what was stored.
   const [ready, setReady] = useState(false);
@@ -113,6 +115,7 @@ export function useDesign() {
 
   const commit = useCallback((next: (s: OGState) => OGState, coalesceKey?: string) => {
     const now = Date.now();
+    edited.current = true;
     const merge =
       coalesceKey !== undefined &&
       last.current?.key === coalesceKey &&
@@ -138,6 +141,7 @@ export function useDesign() {
 
   const undo = useCallback(() => {
     last.current = null;
+    edited.current = true;
     setHistory((h) => {
       const prev = h.past.at(-1);
       if (!prev) return h;
@@ -147,6 +151,7 @@ export function useDesign() {
 
   const redo = useCallback(() => {
     last.current = null;
+    edited.current = true;
     setHistory((h) => {
       const [next, ...future] = h.future;
       if (!next) return h;
@@ -155,17 +160,29 @@ export function useDesign() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     const loadLink = () => {
       const linked = readHash();
       if (!linked) return false;
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
       return linked;
     };
+    const restore = (initial: OGState | null, from: "link" | "storage") => {
+      if (initial) setHistory({ past: [], present: initial, future: [] });
+      setRestored(initial ? from : null);
+      setReady(true);
+    };
+
     const linked = loadLink();
-    const initial = linked || readStorage();
-    if (initial) setHistory({ past: [], present: initial, future: [] });
-    setRestored(linked ? "link" : initial ? "storage" : null);
-    setReady(true);
+    if (linked) restore(linked, "link");
+    else {
+      edited.current = false;
+      void readStorage().then((saved) => {
+        if (cancelled) return;
+        // Someone already started editing while it loaded: keep their work.
+        restore(edited.current ? null : saved, "storage");
+      });
+    }
 
     const onHash = () => {
       const s = loadLink();
@@ -175,21 +192,42 @@ export function useDesign() {
       }
     };
     window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("hashchange", onHash);
+    };
   }, [commit]);
 
   const { present } = history;
+  const pending = useRef<OGState | null>(null);
   useEffect(() => {
     if (!ready) return;
+    pending.current = present;
     const t = setTimeout(() => {
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(present));
-      } catch {
-        // Quota exceeded (large uploads) or storage disabled: keep working unsaved.
-      }
+      pending.current = null;
+      // Storage disabled (private mode) or full: keep working unsaved.
+      saveDesign(present).catch(() => {});
     }, 300);
     return () => clearTimeout(t);
   }, [present, ready]);
+
+  // Write any edit still inside the debounce window when the tab is hidden or closed.
+  useEffect(() => {
+    const flush = () => {
+      if (!pending.current) return;
+      saveDesign(pending.current).catch(() => {});
+      pending.current = null;
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
 
   return {
     state: present,
