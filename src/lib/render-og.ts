@@ -1,5 +1,12 @@
 import { isLocalUrl } from "./html-meta";
-import { FONTS, fontMaxWeight, fontStylesheetUrl, PRESETS, type OGState } from "./og-types";
+import {
+  FONTS,
+  fontMaxWeight,
+  fontStylesheetUrl,
+  nearestWeight,
+  PRESETS,
+  type OGState,
+} from "./og-types";
 
 // Failed loads are cached too, so slider drags don't re-request broken URLs.
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
@@ -136,11 +143,21 @@ function drawCover(
   y: number,
   w: number,
   h: number,
+  focusX = 0.5,
+  focusY = 0.5,
 ) {
   const scale = Math.max(w / img.width, h / img.height);
   const dw = img.width * scale;
   const dh = img.height * scale;
-  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  ctx.drawImage(img, x + coverOffset(w, dw, focusX), y + coverOffset(h, dh, focusY), dw, dh);
+}
+
+/**
+ * Offset that works like CSS `object-position`: focus 0 pins the start edge, 1 the end
+ * edge, and the image never pulls away from the frame.
+ */
+export function coverOffset(frame: number, drawn: number, focus: number): number {
+  return (frame - drawn) * Math.min(1, Math.max(0, focus));
 }
 
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -172,7 +189,7 @@ export async function renderOG(
     state.logoUrl ? loadImage(state.logoUrl).catch(() => null) : null,
     loadFonts(
       state.font,
-      [400, 500, 600, 700].map(weight),
+      [400, 500, 600, 700].map(weight).concat(nearestWeight(state.font, state.titleWeight)),
       `${state.badge.toUpperCase()} ${state.title} ${state.description} ${state.domain}`,
     ),
   ]);
@@ -230,7 +247,7 @@ function draw(
   let sideImage: HTMLImageElement | null = null;
 
   if (image && state.imageMode === "cover") {
-    drawCover(ctx, image, 0, 0, w, h);
+    drawCover(ctx, image, 0, 0, w, h, state.imageFocusX, state.imageFocusY);
     ctx.fillStyle = `rgba(0,0,0,${state.overlay})`;
     ctx.fillRect(0, 0, w, h);
     const g2 = ctx.createLinearGradient(0, 0, w, 0);
@@ -290,15 +307,21 @@ function draw(
   }
 
   // Title
-  ctx.font = `${weight(700)} ${state.titleSize}px ${state.font}, sans-serif`;
+  const titleWeight = nearestWeight(state.font, state.titleWeight);
+  ctx.font = `${titleWeight} ${state.titleSize}px ${state.font}, sans-serif`;
   ctx.fillStyle = state.textColor;
+  const tracking = state.titleTracking * state.titleSize;
+  if ("letterSpacing" in ctx) ctx.letterSpacing = `${tracking}px`;
   const titleLines = wrap(ctx, state.title, textWidth, 3);
-  const titleLh = state.titleSize * 1.14;
-  y += titleLh * 0.8;
+  const titleLh = state.titleSize * state.titleLineHeight;
+  y += state.titleSize * 1.14 * 0.8;
+  // Canvas adds tracking after the last glyph too; nudge centred lines back by half of it.
+  const titleX = centered ? originX + tracking / 2 : originX;
   for (const line of titleLines) {
-    fillText(line, originX, y, state.titleSize, layout.title);
+    fillText(line, titleX, y, state.titleSize, layout.title);
     y += titleLh;
   }
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
 
   // Description: only as many lines (max 3) as fit above the footer.
   const footerY = h - pad;

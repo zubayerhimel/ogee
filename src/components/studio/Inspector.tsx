@@ -14,9 +14,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { CONTRAST_MIN, measureContrast, type ContrastResult } from "@/lib/contrast";
-import { FONT_CATEGORIES, FONTS, type OGState } from "@/lib/og-types";
-import { ensureFontCss } from "@/lib/render-og";
+import { readImageFile } from "@/lib/image-file";
+import {
+  FONT_CATEGORIES,
+  FONTS,
+  fontWeights,
+  nearestWeight,
+  PRESETS,
+  type OGState,
+} from "@/lib/og-types";
+import { ensureFontCss, imageSrc } from "@/lib/render-og";
 import { cn } from "@/lib/utils";
 import { Segmented } from "./Segmented";
 
@@ -227,9 +236,9 @@ function ImageSource({
 
   const onFile = (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onChange(String(reader.result));
-    reader.readAsDataURL(file);
+    readImageFile(file)
+      .then(onChange)
+      .catch(() => toast.error("Couldn't read that image"));
   };
 
   return (
@@ -263,6 +272,138 @@ function ImageSource({
         </div>
       )}
     </Field>
+  );
+}
+
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Click or drag on the thumbnail to choose what stays in view when a background image
+ * is cropped. The lit rectangle is the part of the image that makes it into the card.
+ */
+function FocalPoint({ state, update }: { state: OGState; update: Update }) {
+  const src = state.imageUrl ? imageSrc(state.imageUrl) : null;
+  const [natural, setNatural] = useState<{ src: string; w: number; h: number } | null>(null);
+  const [broken, setBroken] = useState<string | null>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const hintId = useId();
+  const fx = state.imageFocusX;
+  const fy = state.imageFocusY;
+
+  const size = natural && natural.src === src ? natural : null;
+  const frame = PRESETS[state.preset];
+  const scale = size ? Math.max(frame.w / size.w, frame.h / size.h) : 1;
+  const visW = size ? Math.min(1, frame.w / scale / size.w) : 1;
+  const visH = size ? Math.min(1, frame.h / scale / size.h) : 1;
+  // Nothing to choose when the image already has the card's exact shape.
+  const croppable = visW < 0.995 || visH < 0.995;
+
+  const setFrom = (e: React.PointerEvent) => {
+    const rect = boxRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    update({
+      imageFocusX: round2(clamp01((e.clientX - rect.left) / rect.width)),
+      imageFocusY: round2(clamp01((e.clientY - rect.top) / rect.height)),
+    });
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const step = e.shiftKey ? 0.1 : 0.02;
+    const moves: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    };
+    const move = moves[e.key];
+    if (!move) return;
+    e.preventDefault();
+    update({ imageFocusX: round2(clamp01(fx + move[0])), imageFocusY: round2(clamp01(fy + move[1])) });
+  };
+
+  if (!src || broken === src) return null;
+  const centred = fx === 0.5 && fy === 0.5;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[12px] font-medium text-graphite">Focal point</span>
+        {croppable && !centred ? (
+          <button
+            type="button"
+            className="text-[12px] text-graphite underline-offset-2 hover:text-ink hover:underline"
+            onClick={() => update({ imageFocusX: 0.5, imageFocusY: 0.5 })}
+          >
+            Centre
+          </button>
+        ) : null}
+      </div>
+      <div className="flex justify-center bg-wash p-2">
+        <div
+          ref={boxRef}
+          role="group"
+          tabIndex={croppable ? 0 : -1}
+          aria-label={`Focal point, ${Math.round(fx * 100)}% across, ${Math.round(fy * 100)}% down`}
+          aria-describedby={hintId}
+          onKeyDown={croppable ? onKeyDown : undefined}
+          onPointerDown={(e) => {
+            if (!croppable || e.button !== 0) return;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            setFrom(e);
+          }}
+          onPointerMove={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) setFrom(e);
+          }}
+          className={cn(
+            "relative max-w-full touch-none select-none overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 focus-visible:ring-offset-wash",
+            croppable && "cursor-crosshair",
+          )}
+        >
+          <img
+            src={src}
+            alt=""
+            draggable={false}
+            crossOrigin="anonymous"
+            onError={() => setBroken(src)}
+            onLoad={(e) =>
+              setNatural({
+                src,
+                w: e.currentTarget.naturalWidth,
+                h: e.currentTarget.naturalHeight,
+              })
+            }
+            className="block h-auto max-h-40 w-auto max-w-full"
+          />
+          {size && croppable ? (
+            <>
+              <div
+                aria-hidden
+                className="pointer-events-none absolute outline outline-1 outline-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]"
+                style={{
+                  left: `${(1 - visW) * fx * 100}%`,
+                  top: `${(1 - visH) * fy * 100}%`,
+                  width: `${visW * 100}%`,
+                  height: `${visH * 100}%`,
+                }}
+              />
+              <div
+                aria-hidden
+                className="pointer-events-none absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"
+                style={{ left: `${fx * 100}%`, top: `${fy * 100}%` }}
+              />
+            </>
+          ) : null}
+        </div>
+      </div>
+      <p id={hintId} className="text-[12px] text-graphite">
+        {!size
+          ? "Loading image…"
+          : croppable
+            ? "Click or drag to choose what stays in frame. Arrow keys nudge it."
+            : "This image already matches the card's shape, so nothing is cropped."}
+      </p>
+    </div>
   );
 }
 
@@ -356,6 +497,36 @@ export function Inspector({ state, update }: { state: OGState; update: Update })
           suffix=" px"
           onChange={(v) => update({ titleSize: v })}
         />
+        {fontWeights(state.font).length > 1 ? (
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[12px] font-medium text-graphite">Title weight</span>
+            <Segmented
+              label="Title weight"
+              value={String(nearestWeight(state.font, state.titleWeight))}
+              onChange={(v) => update({ titleWeight: Number(v) })}
+              options={fontWeights(state.font).map((w) => ({ value: String(w), label: String(w) }))}
+            />
+          </div>
+        ) : null}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+          <SliderField
+            label="Letter spacing"
+            value={Math.round(state.titleTracking * 1000) / 10}
+            min={-6}
+            max={20}
+            step={0.5}
+            suffix="%"
+            onChange={(v) => update({ titleTracking: Math.round(v * 10) / 1000 })}
+          />
+          <SliderField
+            label="Line height"
+            value={state.titleLineHeight}
+            min={0.9}
+            max={1.6}
+            step={0.02}
+            onChange={(v) => update({ titleLineHeight: Math.round(v * 100) / 100 })}
+          />
+        </div>
         <SliderField
           label="Description size"
           value={state.descSize}
@@ -472,19 +643,24 @@ export function Inspector({ state, update }: { state: OGState; update: Update })
           onChange={(v) =>
             update({
               imageUrl: v,
+              imageFocusX: 0.5,
+              imageFocusY: 0.5,
               ...(v && state.imageMode === "none" ? { imageMode: "cover" as const } : {}),
             })
           }
         />
         {state.imageMode === "cover" ? (
-          <SliderField
-            label="Darken image"
-            value={Math.round(state.overlay * 100)}
-            min={0}
-            max={90}
-            suffix="%"
-            onChange={(v) => update({ overlay: v / 100 })}
-          />
+          <>
+            {state.imageUrl ? <FocalPoint state={state} update={update} /> : null}
+            <SliderField
+              label="Darken image"
+              value={Math.round(state.overlay * 100)}
+              min={0}
+              max={90}
+              suffix="%"
+              onChange={(v) => update({ overlay: v / 100 })}
+            />
+          </>
         ) : null}
         <ImageSource
           label="Logo"

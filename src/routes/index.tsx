@@ -16,6 +16,7 @@ import { ThemeSwitcher } from "@/components/studio/ThemeSwitcher";
 import { Wordmark } from "@/components/studio/Wordmark";
 import { defaultState } from "@/lib/og-types";
 import { shareUrl, useDesign } from "@/lib/design-state";
+import { firstImageFile, readImageFile } from "@/lib/image-file";
 import { isLocalUrl, parseMeta, withScheme, type ScrapedMeta } from "@/lib/html-meta";
 import { scrapeUrl } from "@/lib/scrape.functions";
 import { getSiteOrigin } from "@/lib/site-origin";
@@ -58,6 +59,37 @@ function Index() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo]);
+
+  const addImageFile = (file: File) => {
+    readImageFile(file)
+      .then((imageUrl) => {
+        apply((s) => ({
+          ...s,
+          imageUrl,
+          imageMode: s.imageMode === "none" ? "cover" : s.imageMode,
+          imageFocusX: 0.5,
+          imageFocusY: 0.5,
+        }));
+        toast.success("Image added", { action: { label: "Undo", onClick: undo } });
+      })
+      .catch(() => toast.error("Couldn't read that image"));
+  };
+  const addImageRef = useRef(addImageFile);
+  addImageRef.current = addImageFile;
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      // Text fields keep normal paste; anywhere else an image on the clipboard becomes the background.
+      const target = e.target as Element | null;
+      if (target?.closest?.("input, textarea, [contenteditable]")) return;
+      const file = firstImageFile(e.clipboardData);
+      if (!file) return;
+      e.preventDefault();
+      addImageRef.current(file);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
 
   const share = async () => {
     const { url, droppedUploads } = shareUrl(state, window.location.href);
@@ -195,7 +227,12 @@ function Index() {
 
       <main className="lg:grid lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex flex-col gap-10 lg:min-h-[calc(100dvh-4rem)] bg-stage px-5 pb-10 pt-6 lg:px-12">
-          <Stage state={state} canvasRef={canvasRef} onPreset={(preset) => update({ preset })} />
+          <Stage
+            state={state}
+            canvasRef={canvasRef}
+            onPreset={(preset) => update({ preset })}
+            onImageFile={addImageFile}
+          />
           <TemplateStrip state={state} update={(patch) => apply((s) => ({ ...s, ...patch }))} />
           <PlatformPreviews state={state} />
         </div>

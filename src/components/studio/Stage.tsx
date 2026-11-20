@@ -1,6 +1,8 @@
-import { useEffect, useState, type CSSProperties } from "react";
-import { Frame } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { Frame, ImageDown } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { firstImageFile } from "@/lib/image-file";
 import { FRAME_RATIO, PRESETS, type OGState, type Preset } from "@/lib/og-types";
 import { cropLoss } from "@/lib/platforms";
 import { renderOG } from "@/lib/render-og";
@@ -133,13 +135,19 @@ export function Stage({
   state,
   canvasRef,
   onPreset,
+  onImageFile,
 }: {
   state: OGState;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   onPreset: (preset: Preset) => void;
+  onImageFile: (file: File) => void;
 }) {
   const { w, h } = PRESETS[state.preset];
   const [guides, setGuides] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  // dragenter/leave fire for every child crossed; count them so the hint doesn't flicker.
+  const dragDepth = useRef(0);
+  const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
 
   useEffect(() => {
     let cancelled = false;
@@ -151,7 +159,34 @@ export function Stage({
   }, [state, canvasRef]);
 
   return (
-    <figure className="flex flex-col items-center">
+    <figure
+      className="flex flex-col items-center"
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        dragDepth.current += 1;
+        setDragging(true);
+      }}
+      onDragOver={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={(e) => {
+        if (!hasFiles(e)) return;
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setDragging(false);
+      }}
+      onDrop={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        dragDepth.current = 0;
+        setDragging(false);
+        const file = firstImageFile(e.dataTransfer);
+        if (file) onImageFile(file);
+        else toast.error("That file isn't an image");
+      }}
+    >
       <div className="w-full px-12 pb-14 pt-8 sm:px-14">
         <div
           className="mx-auto flex items-center"
@@ -169,6 +204,14 @@ export function Stage({
               aria-label={`Social image preview: ${state.title}`}
             />
             {guides ? <SafeZones state={state} /> : null}
+            {dragging ? (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center border-2 border-dashed border-spec bg-paper/85 text-[15px] font-medium text-ink backdrop-blur-[2px]">
+                <span className="flex items-center gap-2">
+                  <ImageDown className="size-5 text-spec" />
+                  Drop to use as the background
+                </span>
+              </div>
+            ) : null}
             <Redline axis="x" value={w} />
             <Redline axis="y" value={h} />
           </div>

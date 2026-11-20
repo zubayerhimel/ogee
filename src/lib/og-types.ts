@@ -22,6 +22,9 @@ export type OGState = {
   logoUrl: string | null;
   imageUrl: string | null;
   imageMode: "none" | "cover" | "side";
+  /** Point of a background image kept in view when it's cropped, 0–1 on each axis. */
+  imageFocusX: number;
+  imageFocusY: number;
   bgMode: BgMode;
   bgFrom: string;
   bgTo: string;
@@ -30,6 +33,10 @@ export type OGState = {
   accent: string;
   font: string;
   titleSize: number;
+  titleWeight: number;
+  /** Letter-spacing as a fraction of the title size (em). */
+  titleTracking: number;
+  titleLineHeight: number;
   descSize: number;
   align: Align;
   padding: number;
@@ -106,6 +113,17 @@ export function fontMaxWeight(font: string): number {
   return FONTS.find((f) => f.value === font)?.maxWeight ?? 700;
 }
 
+export function fontWeights(font: string): number[] {
+  return FONTS.find((f) => f.value === font)?.weights ?? [400, 500, 600, 700];
+}
+
+/** The loaded weight closest to `wanted`, so the browser never has to fake one. */
+export function nearestWeight(font: string, wanted: number): number {
+  return fontWeights(font).reduce((best, w) =>
+    Math.abs(w - wanted) < Math.abs(best - wanted) ? w : best,
+  );
+}
+
 export const defaultState: OGState = {
   title: "Design social previews that actually get clicked",
   description:
@@ -115,6 +133,8 @@ export const defaultState: OGState = {
   logoUrl: null,
   imageUrl: null,
   imageMode: "none",
+  imageFocusX: 0.5,
+  imageFocusY: 0.5,
   bgMode: "solid",
   bgFrom: "#0b1020",
   bgTo: "#1d2a4d",
@@ -123,6 +143,9 @@ export const defaultState: OGState = {
   accent: "#7ce8c0",
   font: "'Space Grotesk'",
   titleSize: 74,
+  titleWeight: 700,
+  titleTracking: 0,
+  titleLineHeight: 1.14,
   descSize: 30,
   align: "left",
   padding: 80,
