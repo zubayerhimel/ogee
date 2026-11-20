@@ -30,7 +30,7 @@ export function ThemeSwitcher() {
       value={preference}
       options={OPTIONS}
       onChange={setPreference}
-      className="[&_button]:flex [&_button]:items-center [&_button]:justify-center [&_button]:px-2.5"
+      segmentClassName="flex items-center justify-center px-2.5"
     />
   );
 }

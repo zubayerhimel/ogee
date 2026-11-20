@@ -16,12 +16,15 @@ export function Segmented<T extends string>({
   onChange,
   label,
   className,
+  segmentClassName,
 }: {
   value: T;
   options: Option<T>[];
   onChange: (value: T) => void;
   label: string;
   className?: string;
+  /** Applied to each option and its highlighted copy alike, so both stay the same size. */
+  segmentClassName?: string;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -99,6 +102,7 @@ export function Segmented<T extends string>({
             onKeyDown={(e) => onKeyDown(e, i)}
             className={cn(
               SEGMENT,
+              segmentClassName,
               "text-graphite transition-colors hover:text-ink",
               checked && !clip && "bg-raised text-ink",
             )}
@@ -118,7 +122,10 @@ export function Segmented<T extends string>({
           style={{ clipPath: clip }}
         >
           {options.map((o) => (
-            <span key={o.value} className={cn(SEGMENT, "flex items-center justify-center")}>
+            <span
+              key={o.value}
+              className={cn(SEGMENT, "flex items-center justify-center", segmentClassName)}
+            >
               {o.label}
             </span>
           ))}
