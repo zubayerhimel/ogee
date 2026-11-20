@@ -265,10 +265,7 @@ export function TemplateStrip({
             Rendered with your content. Click to apply.
           </p>
         </div>
-        <div className={cn("flex shrink-0 items-center gap-1.5", !paged && "invisible")}>
-          <span className="mr-2 font-mono text-[12px] tabular-nums text-graphite" aria-live="polite">
-            {page + 1} / {pages}
-          </span>
+        <div className={cn("flex shrink-0 gap-1.5", !paged && "invisible")}>
           <Button
             type="button"
             variant="outline"
