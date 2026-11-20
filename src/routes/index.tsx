@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { ExportDialog } from "@/components/studio/ExportDialog";
 import { Inspector } from "@/components/studio/Inspector";
+import { PlatformPreviews } from "@/components/studio/PlatformPreviews";
 import { PreviewTester } from "@/components/studio/PreviewTester";
 import { Stage } from "@/components/studio/Stage";
 import { TemplateStrip } from "@/components/studio/TemplateStrip";
@@ -196,6 +197,7 @@ function Index() {
         <div className="flex flex-col gap-10 lg:min-h-[calc(100dvh-4rem)] bg-stage px-5 pb-10 pt-6 lg:px-12">
           <Stage state={state} canvasRef={canvasRef} onPreset={(preset) => update({ preset })} />
           <TemplateStrip state={state} update={(patch) => apply((s) => ({ ...s, ...patch }))} />
+          <PlatformPreviews state={state} />
         </div>
         <aside
           aria-label="Edit image"
