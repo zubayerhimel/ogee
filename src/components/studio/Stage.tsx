@@ -1,6 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { Frame } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { FRAME_RATIO, PRESETS, type OGState, type Preset } from "@/lib/og-types";
+import { cropLoss } from "@/lib/platforms";
 import { renderOG } from "@/lib/render-og";
+import { cn } from "@/lib/utils";
 import { Segmented } from "./Segmented";
 
 const PRESET_OPTIONS: { value: Preset; label: string }[] = [
@@ -60,6 +64,71 @@ function Redline({ axis, value }: { axis: "x" | "y"; value: number }) {
   );
 }
 
+function Zone({
+  box,
+  label,
+  labelAt,
+  className,
+}: {
+  box: CSSProperties;
+  label: string;
+  labelAt: "tl" | "tr" | "bl";
+  className: string;
+}) {
+  return (
+    <div className={cn("absolute", className)} style={box}>
+      <span
+        className={cn(
+          "absolute whitespace-nowrap bg-spec px-1 py-px text-[10px] font-medium leading-tight text-white",
+          labelAt === "tl" && "left-0 top-0",
+          labelAt === "tr" && "right-0 top-0",
+          labelAt === "bl" && "bottom-0 left-0",
+        )}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/** Margin, the 1.91:1 crop most link cards use, and the centre square small cards use. */
+function SafeZones({ state }: { state: OGState }) {
+  const { w, h } = PRESETS[state.preset];
+  const x = (v: number) => `${(v / w) * 100}%`;
+  const y = (v: number) => `${(v / h) * 100}%`;
+  const pad = state.padding;
+  const crop = cropLoss(w, h, 1.91);
+  const cropped = crop.x > 2 || crop.y > 2;
+  const square = (w - h) / 2;
+
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+      {cropped ? (
+        <Zone
+          label="1.91:1 crop"
+          labelAt="tr"
+          className="border border-spec shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]"
+          box={{ left: x(crop.x), right: x(crop.x), top: y(crop.y), bottom: y(crop.y) }}
+        />
+      ) : null}
+      {square > 0 ? (
+        <Zone
+          label="Square crop"
+          labelAt="bl"
+          className="border border-dotted border-spec"
+          box={{ left: x(square), right: x(square), top: 0, bottom: 0 }}
+        />
+      ) : null}
+      <Zone
+        label="Margin"
+        labelAt="tl"
+        className="border border-dashed border-spec"
+        box={{ left: x(pad), right: x(pad), top: y(pad), bottom: y(pad) }}
+      />
+    </div>
+  );
+}
+
 export function Stage({
   state,
   canvasRef,
@@ -70,6 +139,7 @@ export function Stage({
   onPreset: (preset: Preset) => void;
 }) {
   const { w, h } = PRESETS[state.preset];
+  const [guides, setGuides] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +168,7 @@ export function Stage({
               role="img"
               aria-label={`Social image preview: ${state.title}`}
             />
+            {guides ? <SafeZones state={state} /> : null}
             <Redline axis="x" value={w} />
             <Redline axis="y" value={h} />
           </div>
@@ -110,6 +181,18 @@ export function Stage({
           options={PRESET_OPTIONS}
           onChange={onPreset}
         />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-pressed={guides}
+          title="Show margins and platform crops"
+          onClick={() => setGuides((g) => !g)}
+          className={cn("h-8", guides && "bg-wash text-ink")}
+        >
+          <Frame />
+          Guides
+        </Button>
       </figcaption>
     </figure>
   );

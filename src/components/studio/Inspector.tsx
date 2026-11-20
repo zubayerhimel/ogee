@@ -1,4 +1,4 @@
-import { useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ImageUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,11 +14,80 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { CONTRAST_MIN, measureContrast, type ContrastResult } from "@/lib/contrast";
 import { FONT_CATEGORIES, FONTS, type OGState } from "@/lib/og-types";
 import { ensureFontCss } from "@/lib/render-og";
+import { cn } from "@/lib/utils";
 import { Segmented } from "./Segmented";
 
 type Update = (patch: Partial<OGState>) => void;
+
+function useContrast(state: OGState): ContrastResult | null {
+  const [result, setResult] = useState<ContrastResult | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const t = setTimeout(() => {
+      void measureContrast(state, () => cancelled).then((r) => {
+        if (!cancelled) setResult(r);
+      });
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [state]);
+  return result;
+}
+
+function ContrastReadout({ state }: { state: OGState }) {
+  const result = useContrast(state);
+  const rows = (
+    [
+      { key: "title", label: "Title", ratio: result?.title ?? null },
+      { key: "description", label: "Description", ratio: result?.description ?? null },
+    ] as const
+  ).filter((r) => r.ratio !== null);
+  if (!rows.length) return null;
+  const low = rows.some((r) => (r.ratio ?? 0) < CONTRAST_MIN[r.key]);
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[12px] font-medium text-graphite">Text contrast</p>
+      <ul className="space-y-1" aria-live="polite">
+        {rows.map((r) => {
+          const ratio = r.ratio ?? 0;
+          const min = CONTRAST_MIN[r.key];
+          // AAA asks for 1.5× the AA ratio at both sizes (4.5 large, 7 body).
+          const grade = ratio >= min * 1.5 ? "AAA" : ratio >= min ? "AA" : "Low";
+          return (
+            <li key={r.key} className="flex items-center justify-between text-[13px]">
+              <span>{r.label}</span>
+              <span className="flex items-center gap-2">
+                <span className="tabular-nums">{ratio.toFixed(1)}:1</span>
+                <span
+                  className={cn(
+                    "w-10 py-0.5 text-center text-[11px] font-semibold",
+                    grade === "Low" ? "bg-fail/10 text-fail" : "bg-pass/10 text-pass",
+                  )}
+                >
+                  {grade}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {low ? (
+        <p className="text-[12px] text-graphite">
+          Hard to read once shrunk in a feed.{" "}
+          {state.imageMode === "cover" && state.imageUrl
+            ? "Darken the image more, or change the text colour."
+            : "Pick a text colour further from the background."}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -348,6 +417,7 @@ export function Inspector({ state, update }: { state: OGState; update: Update })
             onChange={(v) => update({ bgAngle: v })}
           />
         ) : null}
+        <ContrastReadout state={state} />
       </Section>
 
       <Section title="Layout">

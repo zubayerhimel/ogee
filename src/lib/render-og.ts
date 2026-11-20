@@ -97,6 +97,9 @@ function wrap(
 
 const GRAIN_SEED = 0x0ce1;
 
+/** Opacity of the description text; the contrast check blends with the same value. */
+export const DESCRIPTION_ALPHA = 0.82;
+
 /** Mulberry32: tiny deterministic PRNG returning floats in [0, 1). */
 export function seededRandom(seed: number): () => number {
   let a = seed >>> 0;
@@ -140,6 +143,16 @@ function drawCover(
   ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 
+export type Rect = { x: number; y: number; w: number; h: number };
+
+/** Where text landed, in image pixels; used for contrast checks. */
+export type TextLayout = { title: Rect[]; description: Rect[] };
+
+export type RenderOptions = {
+  /** Draw everything except text, so the pixels behind it can be sampled. */
+  skipText?: boolean;
+};
+
 /**
  * Loads images/fonts first, then draws synchronously so overlapping renders can't
  * interleave. `isStale` lets the caller drop renders superseded by newer state.
@@ -148,7 +161,8 @@ export async function renderOG(
   canvas: HTMLCanvasElement,
   state: OGState,
   isStale: () => boolean = () => false,
-): Promise<void> {
+  options: RenderOptions = {},
+): Promise<TextLayout | null> {
   const maxWeight = fontMaxWeight(state.font);
   const weight = (n: number) => Math.min(n, maxWeight);
   const [image, logo] = await Promise.all([
@@ -162,8 +176,8 @@ export async function renderOG(
       `${state.badge.toUpperCase()} ${state.title} ${state.description} ${state.domain}`,
     ),
   ]);
-  if (isStale()) return;
-  draw(canvas, state, image, logo, weight);
+  if (isStale()) return null;
+  return draw(canvas, state, image, logo, weight, options);
 }
 
 function draw(
@@ -172,12 +186,22 @@ function draw(
   image: HTMLImageElement | null,
   logo: HTMLImageElement | null,
   weight: (n: number) => number,
-): void {
+  { skipText = false }: RenderOptions,
+): TextLayout {
+  const layout: TextLayout = { title: [], description: [] };
   const { w, h } = PRESETS[state.preset];
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return layout;
+  const fillText = (text: string, x: number, y: number, size?: number, into?: Rect[]) => {
+    if (into && size) {
+      const width = ctx.measureText(text).width;
+      const left = ctx.textAlign === "center" ? x - width / 2 : x;
+      into.push({ x: left, y: y - size * 0.75, w: width, h: size * 0.95 });
+    }
+    if (!skipText) ctx.fillText(text, x, y);
+  };
 
   ctx.clearRect(0, 0, w, h);
 
@@ -261,7 +285,7 @@ function draw(
   if (state.badge.trim()) {
     ctx.font = `${weight(600)} ${Math.round(state.descSize * 0.72)}px ${state.font}, sans-serif`;
     ctx.fillStyle = state.accent;
-    ctx.fillText(state.badge.toUpperCase(), originX, y + state.descSize * 0.6);
+    fillText(state.badge.toUpperCase(), originX, y + state.descSize * 0.6);
     y += state.descSize * 1.5;
   }
 
@@ -272,7 +296,7 @@ function draw(
   const titleLh = state.titleSize * 1.14;
   y += titleLh * 0.8;
   for (const line of titleLines) {
-    ctx.fillText(line, originX, y);
+    fillText(line, originX, y, state.titleSize, layout.title);
     y += titleLh;
   }
 
@@ -287,14 +311,14 @@ function draw(
       : h - pad / 2;
   if (state.description.trim()) {
     ctx.font = `400 ${state.descSize}px ${state.font}, sans-serif`;
-    ctx.globalAlpha = 0.82;
+    ctx.globalAlpha = DESCRIPTION_ALPHA;
     const descLh = state.descSize * 1.4;
     y += descLh * 0.35;
     const room = footerTop - 24 - state.descSize * 0.25 - y;
     const maxLines = Math.min(3, Math.floor(room / descLh) + 1);
     const descLines = maxLines > 0 ? wrap(ctx, state.description, textWidth, maxLines) : [];
     for (const line of descLines) {
-      ctx.fillText(line, originX, y);
+      fillText(line, originX, y, state.descSize, layout.description);
       y += descLh;
     }
     ctx.globalAlpha = 1;
@@ -318,9 +342,10 @@ function draw(
     ctx.font = domainFont;
     ctx.fillStyle = state.textColor;
     ctx.globalAlpha = 0.7;
-    ctx.fillText(state.domain, fx, footerY);
+    fillText(state.domain, fx, footerY);
     ctx.globalAlpha = 1;
   }
+  return layout;
 }
 
 export function download(canvas: HTMLCanvasElement, format: "png" | "jpeg" | "webp") {
