@@ -122,7 +122,7 @@ export function PreviewTester() {
           {result && counts ? (
             <div key={result.url} className="mt-8 animate-rise" aria-live="polite">
               <p className="flex items-baseline gap-2">
-                <span className="condensed text-[56px] font-semibold leading-none tracking-[-0.02em]">
+                <span className="text-[56px] font-semibold leading-none tracking-[-0.02em]">
                   {result.score}
                 </span>
                 <span className="text-[14px] text-graphite">out of 100</span>

@@ -51,7 +51,7 @@ function Redline({ axis, value }: { axis: "x" | "y"; value: number }) {
     >
       <span className={horizontal ? "h-3 w-px bg-spec" : "h-px w-3 bg-spec"} />
       <span className={horizontal ? "h-px flex-1 bg-spec" : "w-px flex-1 bg-spec"} />
-      <span className="condensed bg-stage px-1.5 py-1 text-[12px] font-medium leading-none text-spec">
+      <span className="bg-stage px-1.5 py-1 text-[12px] font-medium leading-none text-spec">
         {value}
       </span>
       <span className={horizontal ? "h-px flex-1 bg-spec" : "w-px flex-1 bg-spec"} />

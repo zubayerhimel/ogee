@@ -46,7 +46,7 @@ function Field({
           {label}
         </label>
         {value !== undefined ? (
-          <span className="condensed text-[13px] text-ink">{value}</span>
+          <span className="text-[13px] text-ink">{value}</span>
         ) : null}
       </div>
       {children(id)}
@@ -114,7 +114,7 @@ function ColorField({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             spellCheck={false}
-            className="condensed w-full min-w-0 bg-transparent text-[13px] uppercase outline-none focus-visible:outline-none"
+            className="w-full min-w-0 bg-transparent text-[13px] uppercase outline-none focus-visible:outline-none"
           />
         </div>
       )}

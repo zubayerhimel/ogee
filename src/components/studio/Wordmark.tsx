@@ -13,7 +13,7 @@ export function Wordmark() {
         <path d="M2 7h5V2M17 2v5h5M22 17h-5v5M7 22v-5H2" />
         <rect x="9.5" y="10" width="5" height="4" fill="var(--color-spec)" stroke="none" />
       </svg>
-      <span className="condensed text-[19px] font-semibold leading-none tracking-[-0.01em]">
+      <span className="text-[19px] font-semibold leading-none tracking-[-0.01em]">
         OG Studio
       </span>
     </span>

@@ -97,6 +97,7 @@
   --color-warn: var(--warn);
   --color-fail: var(--fail);
   --font-sans: var(--font-ui);
+  --font-mono: var(--font-ui);
 }
 
 :root {
@@ -135,7 +136,7 @@
   --border: var(--hairline);
   --input: var(--hairline-strong);
   --ring: var(--spec);
-  --font-ui: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-ui: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --shadow-proof: 0 1px 2px oklch(0 0 0 / 0.12), 0 18px 40px -18px oklch(0 0 0 / 0.35);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
@@ -227,9 +228,4 @@
   .animate-meter {
     animation-name: fade-in;
   }
-}
-
-@utility condensed {
-  font-stretch: 75%;
-  font-variant-numeric: tabular-nums;
 }

@@ -118,7 +118,7 @@ function Index() {
               <Input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="Paste a page URL to import its title, description and image"
+                placeholder="Paste a page URL"
                 className="pl-9"
                 aria-label="Page URL to import"
                 inputMode="url"
