@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Copy, Download } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, Copy, Download } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +43,9 @@ export function ExportDialog({
   const [framework, setFramework] = useState<FrameworkId>("html");
   const { w, h } = PRESETS[state.preset];
   const snippet = buildSnippet(framework, state, format);
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
   return (
     <Dialog>
@@ -104,11 +107,13 @@ export function ExportDialog({
               variant="outline"
               onClick={async () => {
                 await navigator.clipboard.writeText(snippet);
-                toast.success("Copied meta tags");
+                setCopied(true);
+                clearTimeout(copiedTimer.current);
+                copiedTimer.current = setTimeout(() => setCopied(false), 2000);
               }}
             >
-              <Copy />
-              Copy meta tags
+              {copied ? <Check className="text-pass" /> : <Copy />}
+              <span aria-live="polite">{copied ? "Copied" : "Copy meta tags"}</span>
             </Button>
           </div>
           <p className="mt-3 text-[13px] text-graphite">{PLACEMENT[framework]}</p>
