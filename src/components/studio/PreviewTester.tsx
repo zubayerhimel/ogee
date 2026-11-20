@@ -13,6 +13,9 @@ const STATUS: Record<CheckStatus, { Icon: typeof CircleCheck; tone: string; labe
   fail: { Icon: CircleX, tone: "text-fail", label: "Missing" },
 };
 
+// Non-uniform stagger: gaps shrink as the list grows, so long lists don't drag.
+const stagger = (i: number) => ({ animationDelay: `${Math.round(60 + 45 * Math.sqrt(i))}ms` });
+
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 function UnfurlCard({ result }: { result: AuditResult }) {
@@ -117,7 +120,7 @@ export function PreviewTester() {
           </form>
 
           {result && counts ? (
-            <div className="mt-8" aria-live="polite">
+            <div key={result.url} className="mt-8 animate-rise" aria-live="polite">
               <p className="flex items-baseline gap-2">
                 <span className="condensed text-[56px] font-semibold leading-none tracking-[-0.02em]">
                   {result.score}
@@ -127,10 +130,10 @@ export function PreviewTester() {
               <div className="mt-3 h-1 overflow-hidden rounded-none bg-hairline" aria-hidden="true">
                 <div
                   className={cn(
-                    "h-full rounded-none",
+                    "h-full w-full origin-left animate-meter rounded-none",
                     result.score >= 85 ? "bg-pass" : result.score >= 60 ? "bg-warn" : "bg-fail",
                   )}
-                  style={{ width: `${result.score}%` }}
+                  style={{ transform: `scaleX(${result.score / 100})` }}
                 />
               </div>
               <p className="mt-3 text-[14px] text-graphite">
@@ -148,16 +151,20 @@ export function PreviewTester() {
         </div>
 
         {result ? (
-          <div className="grid gap-8 xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
-            <div className="space-y-2">
+          <div key={result.url} className="grid gap-8 xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+            <div className="animate-rise space-y-2">
               <UnfurlCard result={result} />
               <p className="text-[12px] text-graphite">Approximate preview. Each platform crops slightly differently.</p>
             </div>
             <ul className="divide-y divide-hairline border-y border-hairline">
-              {result.checks.map((c) => {
+              {result.checks.map((c, i) => {
                 const { Icon, tone, label } = STATUS[c.status];
                 return (
-                  <li key={c.key} className="grid grid-cols-[20px_minmax(0,1fr)] gap-x-3 py-3">
+                  <li
+                    key={c.key}
+                    className="grid animate-rise grid-cols-[20px_minmax(0,1fr)] gap-x-3 py-3"
+                    style={stagger(i)}
+                  >
                     <Icon className={cn("mt-0.5 h-[18px] w-[18px]", tone)} aria-label={label} />
                     <div className="min-w-0">
                       <p className="text-[14px] font-medium">{c.label}</p>

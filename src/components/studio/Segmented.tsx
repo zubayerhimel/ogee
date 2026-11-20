@@ -1,9 +1,15 @@
-import { useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type Option<T extends string> = { value: T; label: ReactNode; title?: string };
 
-/** Single-choice segmented control with radio semantics and arrow-key navigation. */
+const SEGMENT = "h-7 flex-1 whitespace-nowrap px-3 text-[13px] font-medium";
+
+/**
+ * Single-choice segmented control with radio semantics and arrow-key navigation.
+ * The active state is an aria-hidden copy of the options, clipped to the selected one,
+ * so background and text colour slide together.
+ */
 export function Segmented<T extends string>({
   value,
   options,
@@ -17,24 +23,64 @@ export function Segmented<T extends string>({
   label: string;
   className?: string;
 }) {
+  const listRef = useRef<HTMLDivElement>(null);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [clip, setClip] = useState<string | null>(null);
+  // Only pointer selections slide; first paint, resizes and arrow keys snap.
+  const [animate, setAnimate] = useState(false);
 
-  const onKeyDown = (e: KeyboardEvent, index: number) => {
-    const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+  const index = options.findIndex((o) => o.value === value);
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const measure = () => {
+      const btn = refs.current[index];
+      if (!btn) return setClip(null);
+      const right = list.clientWidth - btn.offsetLeft - btn.offsetWidth;
+      const bottom = list.clientHeight - btn.offsetTop - btn.offsetHeight;
+      setClip(`inset(${btn.offsetTop}px ${right}px ${bottom}px ${btn.offsetLeft}px)`);
+    };
+    measure();
+    let size = `${list.clientWidth}x${list.clientHeight}`;
+    const ro = new ResizeObserver(() => {
+      const next = `${list.clientWidth}x${list.clientHeight}`;
+      if (next === size) return;
+      size = next;
+      setAnimate(false);
+      measure();
+    });
+    ro.observe(list);
+    return () => ro.disconnect();
+  }, [index]);
+
+  const select = (next: T, slide: boolean) => {
+    setAnimate(slide);
+    onChange(next);
+  };
+
+  const onKeyDown = (e: KeyboardEvent, i: number) => {
+    const step =
+      e.key === "ArrowRight" || e.key === "ArrowDown"
+        ? 1
+        : e.key === "ArrowLeft" || e.key === "ArrowUp"
+          ? -1
+          : 0;
     if (!step) return;
     e.preventDefault();
-    const next = (index + step + options.length) % options.length;
+    const next = (i + step + options.length) % options.length;
     const option = options[next];
     if (!option) return;
-    onChange(option.value);
+    select(option.value, false);
     refs.current[next]?.focus();
   };
 
   return (
     <div
+      ref={listRef}
       role="radiogroup"
       aria-label={label}
-      className={cn("inline-flex rounded-md bg-[oklch(0_0_0/0.06)] p-0.5", className)}
+      className={cn("relative inline-flex bg-[oklch(0_0_0/0.06)] p-0.5", className)}
     >
       {options.map((o, i) => {
         const checked = o.value === value;
@@ -49,17 +95,35 @@ export function Segmented<T extends string>({
             aria-checked={checked}
             tabIndex={checked ? 0 : -1}
             title={o.title}
-            onClick={() => onChange(o.value)}
+            onClick={() => select(o.value, true)}
             onKeyDown={(e) => onKeyDown(e, i)}
             className={cn(
-              "h-7 flex-1 whitespace-nowrap rounded-none px-3 text-[13px] font-medium text-graphite transition-colors hover:text-ink",
-              checked && "bg-paper text-ink shadow-[0_1px_2px_oklch(0_0_0/0.14)]",
+              SEGMENT,
+              "text-graphite transition-colors hover:text-ink",
+              checked && !clip && "bg-paper text-ink",
             )}
           >
             {o.label}
           </button>
         );
       })}
+      {clip ? (
+        <div
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute inset-0 flex bg-paper p-0.5 text-ink",
+            animate &&
+              "transition-[clip-path] duration-250 ease-in-out motion-reduce:transition-none",
+          )}
+          style={{ clipPath: clip }}
+        >
+          {options.map((o) => (
+            <span key={o.value} className={cn(SEGMENT, "flex items-center justify-center")}>
+              {o.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
