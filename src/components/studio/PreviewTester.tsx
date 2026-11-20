@@ -1,18 +1,13 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { CircleAlert, CircleCheck, CircleX, Loader2 } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleX, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import {
-  auditUrl,
-  type AuditResult,
-  type CheckGroup,
-  type CheckStatus,
-} from "@/lib/audit.functions";
+import { auditUrl, type AuditResult, type Check, type CheckStatus } from "@/lib/audit.functions";
 import { cn } from "@/lib/utils";
 
-const GROUP_ORDER: CheckGroup[] = ["Open Graph", "X / Twitter", "Image file", "Page"];
+const SEVERITY: Record<CheckStatus, number> = { fail: 0, warn: 1, pass: 2 };
 
 const STATUS: Record<CheckStatus, { Icon: typeof CircleCheck; tone: string; label: string }> = {
   pass: { Icon: CircleCheck, tone: "text-pass", label: "Passes" },
@@ -24,6 +19,108 @@ const STATUS: Record<CheckStatus, { Icon: typeof CircleCheck; tone: string; labe
 const stagger = (i: number) => ({ animationDelay: `${Math.round(60 + 45 * Math.sqrt(i))}ms` });
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+const DISCLOSURE =
+  "flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden";
+const CHEVRON =
+  "h-4 w-4 shrink-0 text-graphite transition-transform duration-200 ease-out group-open:rotate-90 motion-reduce:transition-none";
+
+/** Compact issue row; when the tag has a value it opens to show it. */
+function IssueRow({ check, index }: { check: Check; index: number }) {
+  const { Icon, tone, label } = STATUS[check.status];
+  const body = (
+    <>
+      <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", tone)} aria-label={label} />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] font-medium">{check.label}</span>
+        <span className="line-clamp-2 text-[13px] text-graphite">{check.note}</span>
+      </span>
+    </>
+  );
+  return (
+    <li className="animate-rise" style={stagger(index)}>
+      {check.value ? (
+        <details className="group">
+          <summary
+            className={cn(
+              DISCLOSURE,
+              "items-start py-2.5 transition-colors hover:bg-wash/60 focus-visible:outline-offset-[-2px]",
+            )}
+          >
+            {body}
+            <ChevronRight className={cn(CHEVRON, "mt-0.5")} aria-hidden="true" />
+          </summary>
+          <p className="break-all pb-3 pl-7 pr-7 text-[13px] text-ink/80">{check.value}</p>
+        </details>
+      ) : (
+        <div className="flex items-start gap-3 py-2.5 pr-7">{body}</div>
+      )}
+    </li>
+  );
+}
+
+const ISSUE_PREVIEW = 5;
+
+function ResultChecks({ checks }: { checks: Check[] }) {
+  const [showAll, setShowAll] = useState(false);
+  const issues = checks
+    .filter((c) => c.status !== "pass")
+    .sort((a, b) => SEVERITY[a.status] - SEVERITY[b.status] || b.weight - a.weight);
+  const passed = checks.filter((c) => c.status === "pass");
+  // Issues are sorted by impact, so the first few are the ones worth fixing first.
+  const hidden = showAll ? 0 : Math.max(0, issues.length - ISSUE_PREVIEW);
+  const visibleIssues = hidden ? issues.slice(0, ISSUE_PREVIEW) : issues;
+
+  return (
+    <div className="space-y-4">
+      {issues.length ? (
+        <div>
+          <h3 className="mb-1 text-[12px] font-medium text-graphite">
+            To fix <span className="text-ink">{issues.length}</span>
+          </h3>
+          <ul className="divide-y divide-hairline border-y border-hairline">
+            {visibleIssues.map((c, i) => (
+              <IssueRow key={c.key} check={c} index={i} />
+            ))}
+          </ul>
+          {hidden ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="-ml-3 mt-1"
+              onClick={() => setShowAll(true)}
+            >
+              Show {hidden} more
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {passed.length ? (
+        // Passing checks are reassurance, not work — keep them folded unless nothing needs fixing.
+        <details className="group animate-rise" open={issues.length === 0}>
+          <summary className={cn(DISCLOSURE, "py-1 text-[13px] text-graphite hover:text-ink")}>
+            <CircleCheck className="h-4 w-4 shrink-0 text-pass" aria-hidden="true" />
+            <span>{plural(passed.length, "check")} passed</span>
+            <ChevronRight className={CHEVRON} aria-hidden="true" />
+          </summary>
+          <ul className="mt-2 flex flex-wrap gap-1.5 pl-7">
+            {passed.map((c) => (
+              <li
+                key={c.key}
+                title={c.value ? `${c.note}\n${c.value}` : c.note}
+                className="bg-wash px-2 py-1 text-[12px] text-ink/80"
+              >
+                {c.label}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </div>
+  );
+}
 
 function UnfurlCard({ result }: { result: AuditResult }) {
   return (
@@ -163,39 +260,8 @@ export function PreviewTester() {
               <UnfurlCard result={result} />
               <p className="text-[12px] text-graphite">Approximate preview. Each platform crops slightly differently.</p>
             </div>
-            <div className="space-y-6">
-              {GROUP_ORDER.map((group) => {
-                const checks = result.checks.filter((c) => c.group === group);
-                if (!checks.length) return null;
-                return (
-                  <section key={group} aria-label={group}>
-                    <h3 className="mb-1 text-[12px] font-medium text-graphite">{group}</h3>
-                    <ul className="divide-y divide-hairline border-y border-hairline">
-                      {checks.map((c) => {
-                        const { Icon, tone, label } = STATUS[c.status];
-                        return (
-                          <li
-                            key={c.key}
-                            className="grid animate-rise grid-cols-[20px_minmax(0,1fr)] gap-x-3 py-3"
-                            style={stagger(result.checks.indexOf(c))}
-                          >
-                            <Icon className={cn("mt-0.5 h-[18px] w-[18px]", tone)} aria-label={label} />
-                            <div className="min-w-0">
-                              <p className="text-[14px] font-medium">{c.label}</p>
-                              {c.value ? (
-                                <p className="truncate text-[13px] text-ink/80" title={c.value}>
-                                  {c.value}
-                                </p>
-                              ) : null}
-                              <p className="text-[13px] text-graphite">{c.note}</p>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </section>
-                );
-              })}
+            <div className="min-w-0">
+              <ResultChecks key={result.url} checks={result.checks} />
             </div>
           </div>
         ) : (
