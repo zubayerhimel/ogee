@@ -17,8 +17,8 @@ export default defineConfig(({ command, mode }) => ({
         client: { files: ["**/server/**"], specifiers: ["server-only"] },
       },
     }),
-    // Cloudflare Workers unless the host is auto-detected or NITRO_PRESET is set.
-    command === "build" && nitro({ defaultPreset: "cloudflare-module" }),
+    // Emits Vercel's Build Output API (.vercel/output); override with NITRO_PRESET.
+    command === "build" && nitro({ preset: process.env["NITRO_PRESET"] ?? "vercel" }),
     viteReact(),
   ],
   resolve: {

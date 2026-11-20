@@ -5,8 +5,7 @@ export a share-ready social image (1200×630 and other presets) along with copy-
 snippets for HTML, Vite, Next.js, TanStack Start, Nuxt, Astro, SvelteKit and Remix. A built-in
 **social preview tester** audits any live page's OG/Twitter tags and scores them.
 
-Built with TanStack Start, React 19, Tailwind CSS 4 and shadcn/ui; deploys to Cloudflare Workers
-via Nitro.
+Built with TanStack Start, React 19, Tailwind CSS 4 and shadcn/ui; deploys to Vercel via Nitro.
 
 ### How it works
 
@@ -30,5 +29,12 @@ cd <repository-name>
 pnpm install
 pnpm dev      # start the dev server
 pnpm test     # run unit tests (Vitest)
-pnpm build    # production build
+pnpm build    # production build (writes .vercel/output)
 ```
+
+## Deploying
+
+Import the repository in Vercel and keep the detected defaults (install with pnpm, build with
+`pnpm build`). Nitro writes Vercel's Build Output API to `.vercel/output`, which Vercel serves as
+static assets plus one Node.js function. To target another host, set `NITRO_PRESET` (for example
+`cloudflare-module` or `node-server`) when building.
