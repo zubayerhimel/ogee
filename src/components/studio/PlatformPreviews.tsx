@@ -3,8 +3,6 @@ import { PRESETS, type OGState } from "@/lib/og-types";
 import { describeCrop, PLATFORMS, type PlatformId } from "@/lib/platforms";
 import { renderOG } from "@/lib/render-og";
 import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Segmented } from "./Segmented";
 
 function useDesignImage(state: OGState): string | null {
   const [src, setSrc] = useState<string | null>(null);
@@ -138,58 +136,32 @@ function Mockup({ platform, state, src }: { platform: PlatformId; state: OGState
 }
 
 export function PlatformPreviews({ state }: { state: OGState }) {
-  const [platform, setPlatform] = useState<PlatformId>("x");
   const src = useDesignImage(state);
   const { w, h } = PRESETS[state.preset];
-  const current = PLATFORMS.find((p) => p.id === platform) ?? PLATFORMS[0]!;
 
   return (
-    <section aria-labelledby="platforms-heading" className="w-full">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-baseline gap-3">
-          <h2 id="platforms-heading" className="text-[14px] font-semibold">
-            Where it’s shared
-          </h2>
-          <p className="hidden truncate text-[13px] text-graphite sm:block">Approximate layouts; platforms change them often.</p>
-        </div>
-        <Segmented
-          label="Platform"
-          className="hidden sm:inline-flex"
-          value={platform}
-          onChange={setPlatform}
-          options={PLATFORMS.map((p) => ({ value: p.id, label: p.label }))}
-        />
-        <Select value={platform} onValueChange={(v) => setPlatform(v as PlatformId)}>
-          <SelectTrigger aria-label="Platform" className="h-8 w-[140px] sm:hidden">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PLATFORMS.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="mt-3 grid gap-4 md:grid-cols-[minmax(0,520px)_minmax(0,1fr)] md:items-start">
-        <div className="shadow-[var(--shadow-proof)]">
-          <Mockup platform={platform} state={state} src={src} />
-        </div>
-        <dl className="space-y-3 text-[13px]">
-          <div>
-            <dt className="font-medium text-ink">Crop</dt>
-            <dd className="text-graphite">
-              {current.crop ? `${current.crop}:1 · ` : "Original shape · "}
-              {describeCrop(w, h, current.crop)}
-            </dd>
-          </div>
-          <div>
-            <dt className="font-medium text-ink">Layout</dt>
-            <dd className="text-graphite">{current.note}</dd>
-          </div>
-        </dl>
-      </div>
+    <section aria-label="How it looks when shared" className="mx-auto w-full max-w-[1120px]">
+      <p className="text-[13px] text-graphite">
+        Approximate layouts at {w} × {h}. Platforms change them often, so treat these as a
+        guide.
+      </p>
+      <ul className="mt-5 grid gap-x-8 gap-y-10 md:grid-cols-2">
+        {PLATFORMS.map((p) => (
+          <li key={p.id} className="min-w-0">
+            <div className="mb-2.5 flex items-baseline justify-between gap-3">
+              <h3 className="text-[14px] font-semibold">{p.label}</h3>
+              <p className="truncate text-[12px] text-graphite">
+                {p.crop ? `${p.crop}:1 · ` : "Original shape · "}
+                {describeCrop(w, h, p.crop)}
+              </p>
+            </div>
+            <div className="shadow-[var(--shadow-proof)]">
+              <Mockup platform={p.id} state={state} src={src} />
+            </div>
+            <p className="mt-2 text-[12px] text-graphite">{p.note}</p>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

@@ -10,6 +10,7 @@ import { ExportDialog } from "@/components/studio/ExportDialog";
 import { Inspector } from "@/components/studio/Inspector";
 import { PlatformPreviews } from "@/components/studio/PlatformPreviews";
 import { PreviewTester } from "@/components/studio/PreviewTester";
+import { Segmented } from "@/components/studio/Segmented";
 import { Stage } from "@/components/studio/Stage";
 import { TemplateStrip } from "@/components/studio/TemplateStrip";
 import { ThemeSwitcher } from "@/components/studio/ThemeSwitcher";
@@ -37,6 +38,7 @@ function Index() {
   const [loading, setLoading] = useState(false);
   const { state, update, apply, undo, redo, canUndo, canRedo, restored } = useDesign();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [view, setView] = useState<"canvas" | "previews">("canvas");
   const scrape = useServerFn(scrapeUrl);
 
   useEffect(() => {
@@ -226,15 +228,33 @@ function Index() {
       </header>
 
       <main className="lg:grid lg:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="flex flex-col gap-10 lg:min-h-[calc(100dvh-4rem)] bg-stage px-5 pb-10 pt-6 lg:px-12">
-          <Stage
-            state={state}
-            canvasRef={canvasRef}
-            onPreset={(preset) => update({ preset })}
-            onImageFile={addImageFile}
-          />
-          <TemplateStrip state={state} update={(patch) => apply((s) => ({ ...s, ...patch }))} />
-          <PlatformPreviews state={state} />
+        <div className="flex flex-col bg-stage px-5 pb-10 pt-5 lg:min-h-[calc(100dvh-4rem)] lg:px-12">
+          <div className="flex items-center justify-between gap-4">
+            <Segmented
+              label="Workspace view"
+              value={view}
+              onChange={setView}
+              options={[
+                { value: "canvas", label: "Canvas" },
+                { value: "previews", label: "Previews", title: "How it looks on X, LinkedIn, Slack and more" },
+              ]}
+            />
+          </div>
+          {view === "canvas" ? (
+            <div className="flex flex-col gap-10">
+              <Stage
+                state={state}
+                canvasRef={canvasRef}
+                onPreset={(preset) => update({ preset })}
+                onImageFile={addImageFile}
+              />
+              <TemplateStrip state={state} update={(patch) => apply((s) => ({ ...s, ...patch }))} />
+            </div>
+          ) : (
+            <div className="pt-6">
+              <PlatformPreviews state={state} />
+            </div>
+          )}
         </div>
         <aside
           aria-label="Edit image"
