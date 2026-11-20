@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { PRESETS, type OGState, type Preset } from "@/lib/og-types";
+import { FRAME_RATIO, PRESETS, type OGState, type Preset } from "@/lib/og-types";
 import { renderOG } from "@/lib/render-og";
 import { Segmented } from "./Segmented";
 
@@ -84,18 +84,23 @@ export function Stage({
     <figure className="flex flex-col items-center">
       <div className="w-full px-12 pb-14 pt-8 sm:px-14">
         <div
-          className="relative mx-auto"
-          style={{ aspectRatio: `${w} / ${h}`, maxWidth: `calc((100dvh - 19rem) * ${w / h})` }}
+          className="mx-auto flex items-center"
+          style={{
+            aspectRatio: FRAME_RATIO,
+            maxWidth: `calc((100dvh - 19rem) * ${FRAME_RATIO})`,
+          }}
         >
-          <CropMarks />
-          <canvas
-            ref={canvasRef}
-            className="block h-full w-full bg-paper shadow-[var(--shadow-proof)]"
-            role="img"
-            aria-label={`Social image preview: ${state.title}`}
-          />
-          <Redline axis="x" value={w} />
-          <Redline axis="y" value={h} />
+          <div className="relative w-full" style={{ aspectRatio: `${w} / ${h}` }}>
+            <CropMarks />
+            <canvas
+              ref={canvasRef}
+              className="block h-full w-full bg-paper shadow-[var(--shadow-proof)]"
+              role="img"
+              aria-label={`Social image preview: ${state.title}`}
+            />
+            <Redline axis="x" value={w} />
+            <Redline axis="y" value={h} />
+          </div>
         </div>
       </div>
       <figcaption className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2">

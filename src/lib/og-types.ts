@@ -7,6 +7,9 @@ export const PRESETS: Record<Preset, { label: string; w: number; h: number }> = 
   banner: { label: "Banner 1500×500", w: 1500, h: 500 },
 };
 
+/** Ratio of the tallest preset. Preview frames use it so switching presets doesn't shift the layout. */
+export const FRAME_RATIO = Math.min(...Object.values(PRESETS).map((p) => p.w / p.h));
+
 export type Align = "left" | "center";
 
 export type OGState = {

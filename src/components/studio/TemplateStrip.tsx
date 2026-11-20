@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { PRESETS, TEMPLATES, type OGState, type Template } from "@/lib/og-types";
+import { FRAME_RATIO, PRESETS, TEMPLATES, type OGState, type Template } from "@/lib/og-types";
 import { renderOG } from "@/lib/render-og";
 import { cn } from "@/lib/utils";
 
@@ -39,15 +39,17 @@ function TemplateThumb({
       onClick={onApply}
       className="group w-[152px] shrink-0 snap-start text-left sm:w-[176px]"
     >
-      <span
-        className={cn(
-          "block overflow-hidden outline outline-1 -outline-offset-1 outline-black/10 transition-[outline-color,outline-offset]",
-          "group-hover:outline-black/40",
-          active && "outline-2 outline-offset-2 outline-ink group-hover:outline-ink",
-        )}
-        style={{ aspectRatio: `${w} / ${h}` }}
-      >
-        <canvas ref={canvasRef} aria-hidden="true" className="block h-full w-full" />
+      <span className="flex items-end" style={{ aspectRatio: FRAME_RATIO }}>
+        <span
+          className={cn(
+            "block w-full overflow-hidden outline outline-1 -outline-offset-1 outline-black/10 transition-[outline-color,outline-offset]",
+            "group-hover:outline-black/40",
+            active && "outline-2 outline-offset-2 outline-ink group-hover:outline-ink",
+          )}
+          style={{ aspectRatio: `${w} / ${h}` }}
+        >
+          <canvas ref={canvasRef} aria-hidden="true" className="block h-full w-full" />
+        </span>
       </span>
       <span
         className={cn(
