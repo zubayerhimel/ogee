@@ -168,7 +168,7 @@ export function auditHtml(html: string, pageUrl: string): AuditResult {
 }
 
 export const auditUrl = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => z.object({ url: z.string().min(1) }).parse(data))
+  .validator((data: unknown) => z.object({ url: z.string().min(1) }).parse(data))
   .handler(async ({ data }): Promise<AuditResult> => {
     const { html, url } = await fetchPage(data.url);
     return { ...auditHtml(html, url), url: withScheme(data.url) };
